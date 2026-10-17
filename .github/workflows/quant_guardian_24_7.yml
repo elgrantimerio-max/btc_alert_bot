@@ -21,17 +21,12 @@ jobs:
       - name: 📥 Checkout Repository
         uses: actions/checkout@v4
 
-      - name: 🐍 Set up Python 3.11
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
       - name: ⚡ Execute Quantitative Engine & Check Confluence
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN || '8635759809:AAF8YTMVkbVizhe2V7ciw_QtOktDqapJWo4' }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID || '159239770' }}
         run: |
-          python quant_bot_24_7.py
+          python3 quant_bot_24_7.py
 
       - name: 💾 Persist State & Alert Cache (Prevent Duplicates)
         run: |
