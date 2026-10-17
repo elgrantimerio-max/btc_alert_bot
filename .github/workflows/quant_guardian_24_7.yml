@@ -1,12 +1,10 @@
-name: BTC Quant Guardian 24/7 (Telegram Automatism)
+name: BTC Quant Guardian 24/7 (Private & Secure)
 
 on:
   schedule:
-    # Se ejecuta cada 10 minutos automáticamente en los servidores de GitHub
-    - cron: '*/10 * * * *'
-  workflow_dispatch: # Permite pulsar "Run workflow" manualmente
-  push:
-    branches: [ main, master ]
+    # Se ejecuta cada 30 minutos (óptimo para los 2.000 min gratis de repo privado)
+    - cron: '*/30 * * * *'
+  workflow_dispatch: # Botón manual "Run workflow"
 
 permissions:
   contents: write
@@ -15,7 +13,7 @@ jobs:
   evaluate-and-alert:
     name: Evaluate 6 Indicators & Alert Telegram
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 3
 
     steps:
       - name: 📥 Checkout Repository
@@ -23,8 +21,8 @@ jobs:
 
       - name: ⚡ Execute Quantitative Engine & Check Confluence
         env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN || '8635759809:AAF8YTMVkbVizhe2V7ciw_QtOktDqapJWo4' }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID || '159239770' }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
           python3 quant_bot_24_7.py
 
