@@ -483,44 +483,31 @@ def evaluate_signal(klines, oi_delta=0.0):
     cur = klines[-1]
     cur_price = cur['c']
 
-    # 1. Session Filter (Max 15 pts) - Riguroso con Fines de Semana y Horarios Institucionales
+    # 1. Session Filter (Max 15 pts)
     dt = datetime.fromtimestamp(cur['t'] / 1000.0, tz=timezone.utc)
-    day_of_week = dt.weekday()  # 0 = Lunes, 5 = Sábado, 6 = Domingo
     utc_hours = dt.hour + dt.minute / 60.0
-    is_saturday = (day_of_week == 5)
-    is_sunday = (day_of_week == 6)
+    is_weekend = dt.weekday() in (5, 6)
 
-    if is_saturday or (is_sunday and utc_hours < 22.0):
-        # Fin de Semana: Wall Street (NYSE), Londres (LSE) y CME están CERRADOS
-        session_name = 'FIN DE SEMANA (BOLSAS CERRADAS)'
-        session_score = 0  # 0/15 pts: Sin combustible ni respaldo institucional tradicional
-    elif is_sunday and utc_hours >= 22.0:
-        # Domingo noche: Apertura semanal de futuros CME y mercados de Asia/Pacífico
-        session_name = 'APERTURA SEMANAL CME / PACÍFICO'
-        session_score = 6
-    else:
-        # Lunes a Viernes: Sesiones Institucionales Abiertas
-        is_london = 8.0 <= utc_hours < 16.5
-        is_ny = 13.0 <= utc_hours < 21.0
-        is_overlap = 13.5 <= utc_hours < 16.5  # 13:30 - 16:30 UTC: Coincidencia máxima
+    is_london = 8.0 <= utc_hours < 16.5
+    is_ny = 13.5 <= utc_hours < 21.0
+    is_overlap = is_london and is_ny
 
-        if is_overlap:
-            session_name = 'OVERLAP (LONDRES + NY)'
-            session_score = 15
-        elif is_ny:
-            session_name = 'NEW YORK (WALL STREET)'
-            session_score = 12
-        elif is_london:
-            session_name = 'LONDRES (EUROPA)'
-            session_score = 12
-        elif 0.0 <= utc_hours < 8.0:
-            session_name = 'ASIA (TOKIO / HK)'
-            session_score = 5
-        else:
-            session_name = 'INTERSESIÓN (POST-NY)'
-            session_score = 3
+    session_name = 'ASIAN'
+    session_score = 5
+    if is_overlap:
+        session_name = 'OVERLAP (LONDRES + NY)'
+        session_score = 15
+    elif is_london:
+        session_name = 'LONDRES'
+        session_score = 12
+    elif is_ny:
+        session_name = 'NEW YORK'
+        session_score = 12
 
-    session_score = min(15, max(0, session_score))
+    if is_weekend:
+        session_score = max(0, session_score - 8)
+
+    session_score = min(15, session_score)
 
     # 2. Anti-Chop & TTM Squeeze Regime Detector (Max 15 pts)
     chop = calculate_choppiness(klines, 14)
@@ -734,7 +721,6 @@ def evaluate_signal(klines, oi_delta=0.0):
 
     if is_long_dominant:
         if session_score >= 10: reasons.append(f"Sesión {session_name}")
-        elif session_score == 0: reasons.append("⚠️ Fin de Semana: Bolsas y CME cerrados (Bajo volumen)")
         if not ttm['is_squeeze']: reasons.append("TTM Squeeze Disparado (Expansión)")
         if anti_chop_score >= 10: reasons.append(f"Régimen Expansivo (Chop {chop:.1f})")
         if long_orb: reasons.append("Ruptura Cajón ORB")
@@ -748,7 +734,6 @@ def evaluate_signal(klines, oi_delta=0.0):
         if ichi_blocked_long: reasons.append("⚠️ FILTRO KUMO: Precio bajo la Nube Bajista")
     else:
         if session_score >= 10: reasons.append(f"Sesión {session_name}")
-        elif session_score == 0: reasons.append("⚠️ Fin de Semana: Bolsas y CME cerrados (Bajo volumen)")
         if not ttm['is_squeeze']: reasons.append("TTM Squeeze Disparado (Expansión)")
         if anti_chop_score >= 10: reasons.append(f"Régimen Expansivo (Chop {chop:.1f})")
         if short_orb: reasons.append("Ruptura Cajón ORB")
