@@ -10,7 +10,7 @@
 
 ## 🎯 Objetivo del Sistema
 
-Capturar expansiones intradía de **1.200 a 1.500 puntos (USD)** en Bitcoin (BTC/USDT) en operaciones en **Largo (LONG)** o **Corto (SHORT)** con **Win Rate superior al 65%-70%** y una frecuencia operativa óptima (8 a 15 operaciones por cada 500 velas de 15m), avisando en tiempo real por **Telegram directamente Telegram)** tanto del momento exacto de **ENTRADA** como de **SALIDA**, funcionando de forma **100% autónoma en la nube las 24 horas del día, los 7 días de la semana**.
+Capturar expansiones intradía de **1.200 a 1.500 puntos (USD)** en Bitcoin (BTC/USDT) en operaciones en **Largo (LONG)** o **Corto (SHORT)** con **Win Rate superior al 65%-70%** y una frecuencia operativa óptima (8 a 15 operaciones por cada 500 velas de 15m), avisando en tiempo real por **Telegram** tanto del momento exacto de **ENTRADA** como de **SALIDA**, funcionando de forma **100% autónoma en la nube las 24 horas del día, los 7 días de la semana**.
 
 ---
 
