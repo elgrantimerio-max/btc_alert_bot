@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
   <title>BTC Quant Terminal V6.5 - @MrProezas Edition</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1100,28 +1100,7 @@
       to { transform: translateX(0); opacity: 1; }
     }
 
-    /* Responsive */
-    @media (max-width: 1200px) {
-      .terminal-main-grid {
-        grid-template-columns: 300px 1fr;
-      }
-      .right-column {
-        display: none;
-      }
-    }
-
-    @media (max-width: 860px) {
-      .terminal-main-grid {
-        grid-template-columns: 1fr;
-      }
-      header.terminal-header {
-        flex-direction: column;
-        align-items: stretch;
-      }
-      .header-market-strip {
-        overflow-x: auto;
-      }
-    /* MULTI-TIMEFRAME CONFLUENCE MATRIX */
+    /* MULTI-TIMEFRAME CONFLUENCE MATRIX (Estilos Base Globales) */
     .mtf-matrix-container {
       display: flex;
       flex-direction: column;
@@ -1218,6 +1197,374 @@
       border: 1px solid rgba(245, 158, 11, 0.4);
       color: var(--gold-accent);
     }
+
+    /* ==========================================================================
+       RESPONSIVE DESIGN (OPTIMIZADO PARA GOOGLE PIXEL 10a & DISPOSITIVOS MÓVILES)
+       ========================================================================== */
+
+    /* Tablet & Medium Displays (<= 1200px) */
+    @media (max-width: 1200px) {
+      .terminal-main-grid {
+        grid-template-columns: 320px 1fr;
+      }
+      .right-column {
+        grid-column: span 2;
+        display: grid !important;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+    }
+
+    /* Small Tablets & Large Mobiles (<= 860px) */
+    @media (max-width: 860px) {
+      .terminal-main-grid {
+        display: flex;
+        flex-direction: column;
+        padding: 8px 10px;
+        gap: 12px;
+      }
+      .center-column {
+        order: 1;
+        width: 100%;
+      }
+      .left-column {
+        order: 2;
+        width: 100%;
+      }
+      .right-column {
+        order: 3;
+        width: 100%;
+        display: flex !important;
+        flex-direction: column;
+        gap: 12px;
+      }
+      header.terminal-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+        padding: 8px 12px;
+      }
+      .header-market-strip {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        display: flex;
+        gap: 6px;
+      }
+      .header-market-strip::-webkit-scrollbar {
+        display: none;
+      }
+      .sub-bar-metrics {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        white-space: nowrap;
+        padding: 6px 12px;
+        gap: 10px;
+        justify-content: flex-start;
+      }
+      .sub-bar-metrics::-webkit-scrollbar {
+        display: none;
+      }
+      .canvas-container {
+        min-height: 380px;
+        height: 400px;
+      }
+    }
+
+    /* Mobile Phones (Pixel 10a ~412px, iPhone, Galaxy) (<= 500px) */
+    @media (max-width: 500px) {
+      body {
+        padding-bottom: env(safe-area-inset-bottom, 12px);
+      }
+      header.terminal-header {
+        padding: 6px 10px;
+        gap: 8px;
+      }
+      .brand-group {
+        gap: 8px;
+      }
+      .brand-logo-badge {
+        padding: 4px 6px;
+      }
+      .brand-logo-badge svg {
+        width: 16px;
+        height: 16px;
+      }
+      .brand-titles h1 {
+        font-size: 13px;
+        flex-wrap: wrap;
+        gap: 4px;
+      }
+      .brand-titles .edition-tag {
+        font-size: 10px;
+      }
+      .brand-titles .sub-desc {
+        font-size: 9.5px;
+        gap: 4px;
+        flex-wrap: wrap;
+      }
+      .header-market-strip {
+        padding: 2px 0 4px 0;
+        gap: 5px;
+      }
+      .ticker-item {
+        flex: 0 0 auto;
+        min-width: 78px;
+        padding: 3px 6px;
+        border-radius: 4px;
+        background: rgba(0, 0, 0, 0.35);
+        border: 1px solid var(--border-color);
+      }
+      .ticker-item .label {
+        font-size: 7.5px;
+      }
+      .ticker-item .val {
+        font-size: 10.5px;
+      }
+      .header-actions {
+        width: 100%;
+        justify-content: flex-end;
+        gap: 6px;
+      }
+      .header-actions .btn-sm {
+        padding: 4px 8px;
+        font-size: 10.5px;
+      }
+      .sub-bar-metrics {
+        font-size: 9.5px;
+        padding: 5px 8px;
+        gap: 8px;
+      }
+      .terminal-main-grid {
+        padding: 6px;
+        gap: 10px;
+      }
+      .panel {
+        border-radius: var(--radius-sm);
+      }
+      .panel-header {
+        padding: 6px 10px;
+        font-size: 11px;
+      }
+      .panel-body {
+        padding: 8px 10px;
+      }
+
+      /* Responsive Candlestick Chart Controls */
+      .canvas-container {
+        min-height: 320px;
+        height: 340px;
+      }
+      .chart-controls-bar {
+        padding: 6px 8px;
+      }
+      .chart-controls-row.top-row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 6px;
+      }
+      .timeframe-selector {
+        display: flex;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        gap: 3px;
+        width: 100%;
+      }
+      .timeframe-selector::-webkit-scrollbar {
+        display: none;
+      }
+      .tf-btn {
+        padding: 4px 8px;
+        font-size: 10px;
+        flex: 1 0 auto;
+        text-align: center;
+        min-height: 28px;
+      }
+      .chart-top-tools {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
+        gap: 6px;
+      }
+      #subChartModeSelect {
+        font-size: 9.5px;
+        padding: 3px 5px;
+        flex: 1;
+        max-width: 140px;
+      }
+      .zoom-controls {
+        padding-left: 4px;
+        gap: 3px;
+      }
+      .zoom-controls button {
+        padding: 2px 6px;
+        font-size: 9.5px;
+      }
+      .chart-controls-row.bottom-row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 4px;
+        margin-top: 4px;
+        padding-top: 4px;
+        border-top: 1px solid rgba(255, 255, 255, 0.05);
+      }
+      .ma-label-badge {
+        font-size: 8.5px;
+      }
+      .chart-toggles {
+        display: flex;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        gap: 10px;
+        width: 100%;
+        padding-bottom: 2px;
+      }
+      .chart-toggles::-webkit-scrollbar {
+        display: none;
+      }
+      .custom-checkbox {
+        font-size: 9.5px;
+        flex-shrink: 0;
+      }
+      .chart-crosshair-tooltip {
+        font-size: 9px;
+        padding: 4px 8px;
+        gap: 6px;
+      }
+      .chart-floating-bubble {
+        max-width: 85vw;
+        font-size: 9px;
+        padding: 6px;
+      }
+
+      /* Live Position Desk Mobile Tuning */
+      .pos-pnl-headline {
+        padding: 6px 0;
+      }
+      .pos-pts-val {
+        font-size: 21px;
+      }
+      .pos-usd-val {
+        font-size: 12px;
+      }
+      .pos-milestones-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 4px;
+      }
+      .milestone-item {
+        padding: 5px 6px;
+      }
+      .milestone-item .lbl {
+        font-size: 8.5px;
+      }
+      .milestone-item .amt {
+        font-size: 11px;
+      }
+      #liveTradeSizeInput {
+        font-size: 11px;
+        padding: 4px 6px;
+      }
+      .pos-type-badge {
+        font-size: 9.5px;
+        padding: 2px 6px;
+      }
+
+      /* Confluence Radar 6 Pillars Mobile Tuning */
+      .confluence-header {
+        align-items: center;
+      }
+      .confluence-score-number {
+        font-size: 24px;
+      }
+      #radarSignalBadge {
+        font-size: 12px;
+      }
+      .confluence-pillars-list {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      .pillar-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 5px 0;
+        gap: 6px;
+      }
+      .pillar-row .name {
+        font-size: 9.5px;
+        line-height: 1.25;
+        flex: 1;
+        word-break: break-word;
+      }
+      .pillar-row .val {
+        font-size: 10.5px;
+        font-weight: 700;
+        flex-shrink: 0;
+      }
+
+      /* Multi-Timeframe Matrix Mobile Tuning */
+      .mtf-row {
+        grid-template-columns: 28px 1fr 38px 42px;
+        gap: 4px;
+        padding: 5px 6px;
+        font-size: 10px;
+      }
+      .mtf-status-pill {
+        font-size: 8.5px;
+        padding: 2px 4px;
+      }
+      .mtf-subhint {
+        font-size: 8.5px;
+      }
+
+      /* Bottom Drawer Tabs Mobile Tuning */
+      .drawer-tabs-header {
+        display: flex;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        padding: 0 4px;
+        gap: 2px;
+      }
+      .drawer-tabs-header::-webkit-scrollbar {
+        display: none;
+      }
+      .drawer-tab-btn {
+        flex-shrink: 0;
+        padding: 8px 10px;
+        font-size: 10px;
+        min-height: 36px;
+      }
+      .drawer-tab-pane {
+        padding: 8px 10px;
+        max-height: 320px;
+      }
+      .journal-kpis-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
+      }
+      .kpi-card {
+        padding: 6px 8px;
+      }
+      .kpi-card .val {
+        font-size: 15px;
+      }
+      .kpi-card .lbl {
+        font-size: 8.5px;
+      }
+      .journal-table, .liq-table {
+        font-size: 9.5px;
+      }
+      .journal-table th, .journal-table td,
+      .liq-table th, .liq-table td {
+        padding: 3px 4px;
+      }
+    }
   </style>
 </head>
 <body>
@@ -1265,9 +1612,6 @@
 
     <!-- ACTIONS -->
     <div class="header-actions">
-      <button class="btn btn-telegram-test" id="btnTestTelegram" title="Enviar ping de prueba a Telegram (Shift+Clic para configurar Token/Chat ID privado en este navegador)">
-        <span>📲</span> Probar Conexión con @MrProezas
-      </button>
       <button class="btn btn-outline btn-sm" id="btnToggleAudio" title="Sonido de Alertas">
         <span id="audioIcon">🔊</span> Audio: <span id="audioStateText">ON</span>
       </button>
@@ -5824,16 +6168,16 @@
       }
     }
 
-    // 17. CHART CROSSHAIR & HOVER HUD
+    // 17. CHART CROSSHAIR & HOVER HUD (Desktop & Mobile Touch)
     function setupChartInteractions() {
       const container = document.getElementById('canvasWrapper');
       const canvas = document.getElementById('mainChartCanvas');
       const floatingBubble = document.getElementById('chartFloatingTooltip');
 
-      container.addEventListener('mousemove', (e) => {
+      function handlePointerHover(clientX, clientY) {
         const rect = canvas.getBoundingClientRect();
-        const mouseX = e.clientX - rect.left;
-        const mouseY = e.clientY - rect.top;
+        const mouseX = clientX - rect.left;
+        const mouseY = clientY - rect.top;
         const visibleCount = STATE.chartZoom || 65;
         const colWidth = rect.width / visibleCount;
         const idxInWindow = Math.floor(mouseX / colWidth);
@@ -5902,6 +6246,7 @@
             let posX = mouseX + 16;
             let posY = mouseY - 45;
             if (posX + 230 > rect.width) posX = mouseX - 240;
+            if (posX < 10) posX = 10;
             if (posY < 10) posY = 10;
             if (posY + 140 > rect.height) posY = rect.height - 150;
 
@@ -5931,15 +6276,31 @@
           }
         }
         requestChartRender();
-      });
+      }
 
-      container.addEventListener('mouseleave', () => {
+      container.addEventListener('mousemove', (e) => handlePointerHover(e.clientX, e.clientY));
+      container.addEventListener('touchmove', (e) => {
+        if (e.touches && e.touches.length > 0) {
+          handlePointerHover(e.touches[0].clientX, e.touches[0].clientY);
+        }
+      }, { passive: true });
+      container.addEventListener('touchstart', (e) => {
+        if (e.touches && e.touches.length > 0) {
+          handlePointerHover(e.touches[0].clientX, e.touches[0].clientY);
+        }
+      }, { passive: true });
+
+      const resetHover = () => {
         STATE.hoverMouseX = null;
         STATE.hoverMouseY = null;
         STATE.hoverCandleIndex = null;
         if (floatingBubble) floatingBubble.style.display = 'none';
         requestChartRender();
-      });
+      };
+
+      container.addEventListener('mouseleave', resetHover);
+      container.addEventListener('touchend', resetHover);
+      container.addEventListener('touchcancel', resetHover);
 
       // Canvas mouse-wheel zoom
       container.addEventListener('wheel', (e) => {
@@ -5958,30 +6319,7 @@
 
     // 18. ATTACH ALL DOM EVENT LISTENERS
     function attachEventListeners() {
-      // 1. Telegram test button (con soporte de configuración segura)
-      const btnTestTg = document.getElementById('btnTestTelegram');
-      if (btnTestTg) {
-        btnTestTg.addEventListener('click', (e) => {
-          if (e.shiftKey || e.altKey) {
-            const currentToken = TELEGRAM_CONFIG.botToken || '';
-            const inputToken = prompt('🔑 [CONFIGURACIÓN TELEGRAM PRIVADA]\nIntroduce tu nuevo Telegram Bot Token:\n(Se guardará únicamente en tu navegador LocalStorage):', currentToken);
-            if (inputToken !== null && inputToken.trim()) {
-              TELEGRAM_CONFIG.botToken = inputToken.trim();
-              localStorage.setItem('btc_quant_telegram_bot_token', inputToken.trim());
-            }
-            const currentChat = TELEGRAM_CONFIG.chatId || '159239770';
-            const inputChat = prompt('👤 Introduce tu Telegram Chat ID:', currentChat);
-            if (inputChat !== null && inputChat.trim()) {
-              TELEGRAM_CONFIG.chatId = inputChat.trim();
-              localStorage.setItem('btc_quant_telegram_chat_id', inputChat.trim());
-            }
-            showToast('Credenciales actualizadas en tu navegador.', 'info');
-          }
-          sendTelegramAlert('TEST', {});
-        });
-      }
-
-      // 2. Audio toggle
+      // 1. Audio toggle
       document.getElementById('btnToggleAudio').addEventListener('click', () => {
         QUANT_CONFIG.audioEnabled = !QUANT_CONFIG.audioEnabled;
         document.getElementById('audioStateText').textContent = QUANT_CONFIG.audioEnabled ? 'ON' : 'OFF';
@@ -6301,11 +6639,13 @@
         });
       }
 
-      // 13. Window Resize
-      window.addEventListener('resize', () => {
+      // 13. Window Resize & Mobile Orientation Change
+      const handleResize = () => {
         renderChart();
         if (STATE.backtestResults) renderEquityCurve(STATE.backtestResults.equityCurve);
-      });
+      };
+      window.addEventListener('resize', handleResize);
+      window.addEventListener('orientationchange', () => setTimeout(handleResize, 150));
     }
 
     // 19. TERMINAL INITIALIZATION ENTRY POINT
