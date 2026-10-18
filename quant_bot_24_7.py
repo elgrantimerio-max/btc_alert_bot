@@ -2,7 +2,7 @@
 """
 BTC Quant Terminal V6.5 - 24/7 Cloud Guardian Engine
 Autonomous Headless Engine for GitHub Actions & VPS
-Monitors Bitcoin (BTC/USDT) every 10 minutes in the cloud and sends real-time Telegram alerts
+Monitors Bitcoin (BTC/USDT) every 5 minutes in the cloud and sends real-time Telegram alerts
 Target: Capture expansions of 1,200 to 1,500 points (USD) in Long/Short
 """
 
@@ -71,6 +71,7 @@ QUANT_CONFIG = {
 
 STATE_FILE = 'state.json'
 LAST_ALERT_FILE = 'last_alert.json'
+JOURNAL_FILE = 'journal.json'
 
 # 2. TELEGRAM DISPATCHER
 def send_telegram_alert(text):
@@ -839,7 +840,65 @@ def evaluate_signal(klines, oi_delta=0.0):
         'pillars': pillars
     }
 
-# 6. DYNAMIC POSITION GUARDIAN (State Monitor)
+# 6. DYNAMIC POSITION GUARDIAN & CLOUD PAPER TRADING RECORDER
+def record_cloud_closed_trade(pos, exit_price, reason):
+    is_long = pos['direction'] == 'LONG'
+    pts = (exit_price - pos['entry_price']) if is_long else (pos['entry_price'] - exit_price)
+    btc_qty = pos.get('btc_qty', QUANT_CONFIG.get('default_trade_size_btc', 0.25))
+    notional = pos.get('notional', QUANT_CONFIG.get('trade_notional_usdt', 20000.0))
+    leverage = QUANT_CONFIG.get('leverage', 20)
+
+    tp1_hit = pos.get('tp1_hit', False)
+    realized_usd = pos.get('realized_usd', 0.0)
+
+    if tp1_hit:
+        remaining_qty = btc_qty * 0.25
+        remaining_pnl = pts * remaining_qty
+    else:
+        remaining_pnl = pts * btc_qty
+
+    friction_usd = QUANT_CONFIG.get('friction_fee_pts', 35) * btc_qty
+    total_net_pnl_usd = (realized_usd + remaining_pnl) - friction_usd
+    total_net_pts = round(total_net_pnl_usd / btc_qty) if btc_qty > 0 else round(pts)
+    margin_used = notional / leverage
+    roi_pct = round((total_net_pnl_usd / margin_used) * 100, 1) if margin_used > 0 else 0.0
+
+    trade_record = {
+        'id': pos.get('id', f"CLOUD_{int(datetime.now(timezone.utc).timestamp())}"),
+        'isAutonomous': True,
+        'source': 'AUTONOMOUS',
+        'cloud': True,
+        'direction': pos['direction'],
+        'openedAt': pos.get('opened_at', datetime.now(timezone.utc).isoformat()),
+        'closedAt': datetime.now(timezone.utc).isoformat(),
+        'entryPrice': pos['entry_price'],
+        'exitPrice': exit_price,
+        'size': btc_qty,
+        'notional': notional,
+        'netPts': total_net_pts,
+        'netPnlUsd': round(total_net_pnl_usd, 2),
+        'roiPct': roi_pct,
+        'reason': f"🤖 Quant Guardian [{reason}]",
+        'tp1Hit': tp1_hit
+    }
+
+    journal = []
+    if os.path.exists(JOURNAL_FILE):
+        try:
+            with open(JOURNAL_FILE, 'r', encoding='utf-8') as f:
+                journal = json.load(f)
+        except Exception:
+            journal = []
+
+    # Insert latest trade at the beginning
+    journal.insert(0, trade_record)
+    try:
+        with open(JOURNAL_FILE, 'w', encoding='utf-8') as f:
+            json.dump(journal, f, indent=2)
+        print(f"[CLOUD JOURNAL] Operación registrada con éxito en {JOURNAL_FILE}: {total_net_pts:+} pts (${total_net_pnl_usd:,.2f} USD)")
+    except Exception as e:
+        print(f"[CLOUD JOURNAL ERROR] No se pudo guardar en {JOURNAL_FILE}: {e}")
+
 def monitor_cloud_position(cur_price, klines):
     if not os.path.exists(STATE_FILE):
         return
@@ -864,7 +923,7 @@ def monitor_cloud_position(cur_price, klines):
         be_lock = pos.get('break_even_lock_pts', QUANT_CONFIG.get('break_even_lock_pts', 400))
         pos['sl'] = (pos['entry_price'] + be_lock) if is_long else (pos['entry_price'] - be_lock)
         pos['peak_price'] = cur_price
-        btc_qty = QUANT_CONFIG['trade_notional_usdt'] / pos['entry_price']
+        btc_qty = pos.get('btc_qty', QUANT_CONFIG['trade_notional_usdt'] / pos['entry_price'])
         partial_frac = pos.get('tp1_partial_pct', QUANT_CONFIG.get('tp1_partial_pct', 0.75))
         realized_tp1_usd = tp1_target * partial_frac * btc_qty
         pos['realized_usd'] = pos.get('realized_usd', 0.0) + realized_tp1_usd
@@ -897,7 +956,7 @@ def monitor_cloud_position(cur_price, klines):
             elif not is_long and new_sl < pos['sl']:
                 pos['sl'] = new_sl
 
-    # 2. Early Exit (> +200 pts + opposing momentum)
+    # 2. Early Exit (> +400 pts + opposing momentum)
     if pts >= QUANT_CONFIG['early_exit_min_profit_pts'] and not pos.get('early_exit_warned'):
         rsi = calculate_rsi(klines, 14)
         if (is_long and rsi > 82.0) or (not is_long and rsi < 18.0):
@@ -924,19 +983,22 @@ def monitor_cloud_position(cur_price, klines):
             f"🎉 Operación finalizada con éxito."
         )
         send_telegram_alert(msg)
+        record_cloud_closed_trade(pos, cur_price, f"TP2 FINAL (+{round(pts)} PTS)")
         state['open_position'] = None
 
     # 4. Stop-Loss
     sl_hit = (cur_price <= pos['sl']) if is_long else (cur_price >= pos['sl'])
     if sl_hit:
+        reason_sl = "STOP BREAK-EVEN" if pos.get('tp1_hit') else "STOP-LOSS"
         msg = (
-            f"🛑 <b>STOP-LOSS EJECUTADO [CLOUD GUARDIAN]</b>\n"
+            f"🛑 <b>{reason_sl} EJECUTADO [CLOUD GUARDIAN]</b>\n"
             f"━━━━━━━━━━━━━━━━━━━━\n"
             f"Dirección: <b>{pos['direction']}</b>\n"
             f"💵 Precio Cierre: ${cur_price:,.2f}\n"
             f"📉 Puntos: {round(pts)} pts"
         )
         send_telegram_alert(msg)
+        record_cloud_closed_trade(pos, cur_price, reason_sl)
         state['open_position'] = None
 
     # 5. Cierre por Tiempo Máximo (5 Velas / 20 Horas - Horizonte Óptimo)
@@ -957,6 +1019,7 @@ def monitor_cloud_position(cur_price, klines):
                         f"💡 Posición liquidada por límite de tiempo de la estrategia óptima."
                     )
                     send_telegram_alert(msg)
+                    record_cloud_closed_trade(pos, cur_price, "LÍMITE TIEMPO 20H")
                     state['open_position'] = None
             except Exception:
                 pass
@@ -1022,31 +1085,28 @@ def main():
 
     print(f"[ANALYSIS] Dirección: {sig['direction']} | Score: {sig['score']}% | Sesión: {sig.get('session')}")
 
-    # Check last alert cache to prevent duplicate alerts on the same candle
+    # Check last alert cache to prevent duplicate alerts on the same setup
     last_alert_key = None
+    last_alert_time = None
     if os.path.exists(LAST_ALERT_FILE):
         try:
             with open(LAST_ALERT_FILE, 'r') as f:
                 last_alert_data = json.load(f)
                 last_alert_key = last_alert_data.get('alert_key')
+                last_alert_time = last_alert_data.get('timestamp')
         except Exception:
             pass
 
-    cur_candle_key = f"{sig['direction']}_{sig.get('timestamp')}"
+    opt = sig.get('optimal_entry', {})
+    timing_status = opt.get('timing_status', 'FAVORABLE')
+    cur_candle_key = f"{sig['direction']}_{sig.get('timestamp')}_{sig.get('tier')}_{timing_status}"
 
     if sig['score'] >= QUANT_CONFIG['min_score_threshold'] and sig['direction'] in ('LONG', 'SHORT'):
-        if last_alert_key == cur_candle_key:
-            print(f"[ALERT SKIP] Alerta ya enviada previamente para la vela {cur_candle_key}.")
+        is_duplicate = (last_alert_key == cur_candle_key)
+        if is_duplicate:
+            print(f"[ALERT SKIP] Alerta idéntica ya enviada para {cur_candle_key} (Estado actual activo y sin cambios).")
         else:
-            print(f"[SEÑAL CLARA DETECTADA] ¡Score {sig['score']}%! Despachando a Telegram...")
-            opt = sig.get('optimal_entry', {})
-            opt_str = ""
-            if opt:
-                opt_str = (
-                    f"🎯 <b>Zona Óptima Retest / Pullback:</b> <code>${opt.get('zone_min', sig['cur_price']):,.2f} - ${opt.get('zone_max', sig['cur_price']):,.2f}</code>\n"
-                    f"⏱ <b>Timing Sugerido:</b> {opt.get('timing_advice', 'Entrada activa.')}\n"
-                )
-
+            print(f"[ÍNDICE DE CONFLUENCIA ÓPTIMO ACTIVO] ¡Score {sig['score']}% [{sig['direction']}]! Despachando a Telegram...")
             is_a_plus = sig.get('is_tier_a_plus', False)
             notional = sig.get('recommended_notional', QUANT_CONFIG.get('trade_notional_usdt', 20000.0))
             leverage = QUANT_CONFIG.get('leverage', 20)
@@ -1055,22 +1115,48 @@ def main():
             btc_qty = sig.get('recommended_size_btc', notional / sig['cur_price'] if sig['cur_price'] > 0 else 0.25)
             sl_usd = sig['sl_pts'] * btc_qty
             tp2_usd = sig['tp2_pts'] * btc_qty
-            rr_ratio = sig['tp2_pts'] / sig['sl_pts'] if sig['sl_pts'] > 0 else 3.0
 
             if is_a_plus:
                 header_title = (
-                    f"💎 <b>¡SEÑAL INSTITUCIONAL A+ [{sig['direction']}] (DOBLE CANTIDAD $40k)!</b>\n"
-                    f"🔥 <b>CONVICCIÓN MÁXIMA: 80% WIN RATE HISTÓRICO • PROFIT FACTOR 5.51</b>\n"
+                    f"💎 <b>¡ÍNDICE DE CONFLUENCIA ÓPTIMO A+ [{sig['direction']}]!</b>\n"
+                    f"🔥 <b>CONVICCIÓN INSTITUCIONAL MÁXIMA (DOBLE TAMAÑO $40,000 USD)</b>\n"
+                    f"⚡ <i>80% Win Rate Histórico • Profit Factor 5.51</i>\n"
                 )
                 sizing_line = f"💼 <b>Dimensionamiento Dual A+:</b> Posición ${notional:,.0f} USD ({btc_qty:.2f} BTC) | Margen: ${margin_used:,.0f} USD ({free_buffer_pct}% Libre)\n"
-            else:
-                header_title = f"🚀 <b>NUEVA ENTRADA CUANTITATIVA [{sig['direction']}] [CLOUD 24/7]</b>\n"
+            elif timing_status == 'ENTER_NOW':
+                header_title = (
+                    f"⚡ <b>¡ÍNDICE DE CONFLUENCIA ÓPTIMO ACTIVO [{sig['direction']}]!</b>\n"
+                    f"🎯 <b>NIVEL DE ENTRADA RETEST INMEDIATO CONFIRMADO</b>\n"
+                )
                 sizing_line = f"💼 <b>Dimensionamiento Estándar:</b> Posición ${notional:,.0f} USD ({btc_qty:.2f} BTC) | Margen: ${margin_used:,.0f} USD ({free_buffer_pct}% Libre)\n"
+            else:
+                header_title = (
+                    f"🚀 <b>¡ÍNDICE DE CONFLUENCIA ÓPTIMO ACTIVO PARA OPERAR [{sig['direction']}]!</b>\n"
+                )
+                sizing_line = f"💼 <b>Dimensionamiento Estándar:</b> Posición ${notional:,.0f} USD ({btc_qty:.2f} BTC) | Margen: ${margin_used:,.0f} USD ({free_buffer_pct}% Libre)\n"
+
+            pillars = sig.get('pillars', {})
+            pillars_str = (
+                f"🏛 <b>Pilares Cuantitativos ({sig['score']}/100 pts):</b>\n"
+                f"  • Sesión: <code>{pillars.get('session', 0)}/15 pts</code> ({sig.get('session', 'N/A')})\n"
+                f"  • Régimen Anti-Chop/TTM: <code>{pillars.get('anti_chop', 0)}/15 pts</code> (Chop: {sig.get('chop', 0):.1f})\n"
+                f"  • Rango ORB & ADR 24h: <code>{pillars.get('orb', 0)}/15 pts</code>\n"
+                f"  • Estructura VWAP/EMAs/Ichimoku: <code>{pillars.get('structure', 0)}/34 pts</code>\n"
+                f"  • Flujo Órdenes (CVD/OI): <code>{pillars.get('order_flow', 0)}/15 pts</code>\n"
+                f"  • Barrido Liquidez SFP: <code>{pillars.get('liq_sweep', 0)}/6 pts</code>\n"
+            )
+
+            opt_str = ""
+            if opt:
+                opt_str = (
+                    f"🎯 <b>Zona Óptima Retest / Pullback:</b> <code>${opt.get('zone_min', sig['cur_price']):,.2f} - ${opt.get('zone_max', sig['cur_price']):,.2f}</code>\n"
+                    f"⏱ <b>Timing Sugerido:</b> {opt.get('timing_advice', 'Entrada activa.')}\n"
+                )
 
             msg = (
                 f"{header_title}"
                 f"━━━━━━━━━━━━━━━━━━━━\n"
-                f"📊 <b>Puntuación de Confluencia:</b> <code>{sig['score']}%</code> (Umbral: {QUANT_CONFIG['min_score_threshold']}%)\n"
+                f"📊 <b>Puntuación de Confluencia:</b> <code>{sig['score']}%</code> (Umbral Mínimo: {QUANT_CONFIG['min_score_threshold']}%)\n"
                 f"💵 <b>Precio de Mercado Actual:</b> ${sig['cur_price']:,.2f}\n"
                 f"{opt_str}"
                 f"{sizing_line}"
@@ -1079,27 +1165,30 @@ def main():
                 f"🏁 <b>TP2 (25% Corredor Final):</b> ${sig['tp2']:,.2f} (+{sig['tp2_pts']} pts | ~+${tp2_usd:,.2f} USD)\n"
                 f"⏳ <b>Horizonte Óptimo:</b> 5 Velas 4H (20 Horas)\n"
                 f"🛡 <b>Regla Institucional:</b> Al tocar TP1, Stop a Break-Even (+400 pts) (100% Risk-Free)\n"
-                f"⏱ <b>Sesión:</b> {sig['session']}\n"
-                f"📈 <b>Motivo:</b> {' • '.join(sig['reasons'])}\n"
+                f"{pillars_str}"
+                f"📈 <b>Motivos:</b> {' • '.join(sig['reasons'])}\n"
                 f"━━━━━━━━━━━━━━━━━━━━\n"
-                f"☁️ <i>Generado automáticamente 24/7 por GitHub Actions en la nube.</i>"
+                f"☁️ <i>Quant Guardian 24/7 ejecutándose cada 5 minutos en GitHub Actions.</i>"
             )
-            success = send_telegram_alert(msg)
-            if success:
-                # Save alert key
-                with open(LAST_ALERT_FILE, 'w') as f:
-                    json.dump({
-                        'alert_key': cur_candle_key,
-                        'direction': sig['direction'],
-                        'score': sig['score'],
-                        'price': sig['cur_price'],
-                        'is_tier_a_plus': is_a_plus,
-                        'notional': notional,
-                        'timestamp': datetime.now(timezone.utc).isoformat()
-                    }, f, indent=2)
+            send_telegram_alert(msg)
 
-                # Record in state for cloud monitoring
+            # Guardar cache de última alerta para evitar duplicados
+            with open(LAST_ALERT_FILE, 'w') as f:
+                json.dump({
+                    'alert_key': cur_candle_key,
+                    'direction': sig['direction'],
+                    'score': sig['score'],
+                    'price': sig['cur_price'],
+                    'is_tier_a_plus': is_a_plus,
+                    'notional': notional,
+                    'timestamp': datetime.now(timezone.utc).isoformat()
+                }, f, indent=2)
+
+            # Registrar posición autónoma en la nube si no hay una activa
+            if not state.get('open_position'):
+                trade_id = f"CLOUD_{int(datetime.now(timezone.utc).timestamp())}"
                 state['open_position'] = {
+                    'id': trade_id,
                     'direction': sig['direction'],
                     'entry_price': sig['cur_price'],
                     'notional': notional,
@@ -1118,6 +1207,9 @@ def main():
                 state['last_updated'] = datetime.now(timezone.utc).isoformat()
                 with open(STATE_FILE, 'w') as f:
                     json.dump(state, f, indent=2)
+                print(f"[CLOUD PAPER TRADING] Nueva posición autónoma abierta: {sig['direction']} en ${sig['cur_price']:,.2f} ({trade_id})")
+            else:
+                print(f"[CLOUD PAPER TRADING] Posición {state['open_position']['direction']} aún abierta. No se abren posiciones concurrentes.")
     else:
         print(f"[STATUS] Sin señal de disparo (Score {sig['score']}% < {QUANT_CONFIG['min_score_threshold']}%).")
 
