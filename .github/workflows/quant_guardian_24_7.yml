@@ -23,8 +23,8 @@ jobs:
 
       - name: ⚡ Execute Quantitative Engine & Check Confluence
         env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN || '8635759809:AAF8YTMVkbVizhe2V7ciw_QtOktDqapJWo4' }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID || '159239770' }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
           python3 quant_bot_24_7.py
 
