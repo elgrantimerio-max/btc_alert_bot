@@ -1,4 +1,4 @@
-# ⚡ BTC Quant Terminal V6.5 — @MrProezas Edition
+# ⚡ BTC Quant Terminal V6.5 — Pro Edition
 
 > **Terminal Cuantitativa Autónoma de Bitcoin (BTC/USDT) con Enfoque Híbrido Doble Nivel ($20k/$40k), Matriz Multi-Temporal en Tiempo Real, Índice de Confluencia Calibrado a 100 Puntos, Vigilancia Cloud 24/7 mediante GitHub Actions y Alertas Instantáneas a Telegram.**
 
@@ -34,6 +34,11 @@ La versión 6.5 introduce mejoras estructurales tanto en la analítica de conflu
    - **Coloreado Dinámico de Pilares:** Verde para pilares fuertes ($\ge 70\%$), Dorado para intermedios ($40-69\%$) y Atenuado para débiles ($< 40\%$).
    - **Alineación de Desglose en Neutro/Bias:** La tarjeta de pilares ahora siempre refleja los valores del lado dominante, evitando discrepancias en el monitor.
    - **Corrección de Metadatos SL/TP:** Contenedor de objetivos responsivo en *Live Position Desk* con cálculo unificado en Long/Short.
+4. **Diseño Ultra-Responsivo Móvil (Optimizado para Google Pixel 10a):**
+   - Vista adaptada específicamente para smartphones de alta resolución (ancho ~412px en Pixel 10a, Galaxy, iPhone).
+   - Reorganización vertical inteligente: Gráfico interactivo prioritario arriba, seguido del *Live Position Desk*, *Radar de Confluencia* y *Matriz Multi-Temporal*.
+   - Barras de control y temporalidades con desplazamiento táctil horizontal fluido (`touch-scrolling`).
+   - Inspección táctil nativa de velas con el dedo sin bloquear el scroll vertical.
 
 ---
 
@@ -46,7 +51,7 @@ flowchart LR
     B --> C["📊 Binance Spot & Futures Data"]
     C --> D["🧠 9 Pilares Cuantitativos"]
     D --> E{"¿Score >= 68% & Sin Bloqueos?"}
-    E -- Sí --> F["📱 Telegram API (@MrProezas)"]
+    E -- Sí --> F["📱 Telegram Bot API"]
     E -- No --> G["💤 Hibernación / Filtro Activo"]
 ```
 
@@ -65,6 +70,91 @@ flowchart LR
 
 ---
 
+## 🚀 Pasos para Subir y Activar en GitHub
+
+### Opción A: Desde la Consola (Git CLI)
+
+Si tienes `git` instalado en tu sistema, ejecuta estos comandos en la carpeta del proyecto:
+
+```bash
+# 1. Inicializar repositorio git local
+git init
+
+# 2. Agregar todos los archivos
+git add .
+
+# 3. Crear el primer commit
+git commit -m "feat: desplegar BTC Quant Terminal V6.5 con automatismo 24/7 y confluencia 100 pts"
+
+# 4. Establecer la rama principal
+git branch -M main
+
+# 5. Vincular con tu repositorio remoto
+git remote add origin https://github.com/elgrantimerio-max/btctradingbot.git
+
+# 6. Subir los archivos a GitHub
+git push -u origin main
+```
+
+---
+
+### Opción B: Mediante GitHub Desktop o Web (Arrastrar y Soltar)
+
+1. Entra a tu repositorio: [**https://github.com/elgrantimerio-max/btctradingbot**](https://github.com/elgrantimerio-max/btctradingbot)
+2. Si el repositorio está vacío, pulsa en **"uploading an existing file"** (o en **Add file > Upload files**).
+3. Arrastra todos los archivos de esta carpeta (incluida la carpeta `.github/` con el workflow).
+4. Pulsa en **"Commit changes"**.
+
+---
+
+## 🌐 Cómo Activar la Web Online (GitHub Pages Gratuito)
+
+Para tener el terminal interactivo accesible desde cualquier móvil o navegador las 24 horas:
+
+1. En tu repositorio GitHub, ve a **Settings** (pestaña superior derecha).
+2. En el menú lateral izquierdo, haz clic en **Pages**.
+3. En **Build and deployment > Source**, selecciona:
+   - **Branch:** `main`
+   - **Folder:** `/ (root)`
+4. Haz clic en **Save**.
+5. En unos segundos, tu terminal estará disponible públicamente en:
+   👉 **`https://elgrantimerio-max.github.io/btctradingbot/`**
+
+---
+
+## 🔒 Configuración de Seguridad y Secretos en GitHub (Imprescindible)
+
+Para que el robot opere de forma autónoma en la nube (GitHub Actions) y envíe alertas a Telegram sin exponer tus credenciales en el repositorio:
+
+1. Ve a tu repositorio en GitHub: [**https://github.com/elgrantimerio-max/btctradingbot**](https://github.com/elgrantimerio-max/btctradingbot)
+2. Entra en **Settings** (pestaña superior derecha del repositorio).
+3. En el menú lateral izquierdo, selecciona **Secrets and variables > Actions**.
+4. Pulsa en el botón verde **New repository secret** y crea estos 2 secretos:
+   - **Nombre:** `TELEGRAM_BOT_TOKEN`
+     - **Secret:** El token de tu bot obtenido con [@BotFather](https://t.me/BotFather) (ej. `123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ...`)
+   - **Nombre:** `TELEGRAM_CHAT_ID`
+     - **Secret:** Tu ID numérico de Telegram (ej. `123456789`)
+ 5. ¡Listo! El runner de GitHub Actions inyectará estos secretos automáticamente en cada escaneo 24/7 sin que queden registrados en el historial de Git.
+
+### 💻 Para Ejecutar en Local (Opcional)
+Si deseas ejecutar `quant_bot_24_7.py` o `quant_bot_24_7.js` en tu propio ordenador:
+1. Copia `.env.example` como `.env`:
+   ```bash
+   copy .env.example .env
+   ```
+2. Rellena tus claves en `.env` (este archivo está en `.gitignore` para no subirse jamás a GitHub).
+
+---
+
+## 📱 Verificación del Workflow
+
+Una vez subido el código:
+1. Ve a la pestaña **Actions** en tu repositorio de GitHub.
+2. Verás el flujo **BTC Quant Guardian 24/7 (Telegram Automatism)**.
+3. Puedes esperar a la siguiente ejecución automática (cada 10 minutos) o pulsar en **Run workflow** para forzar un escaneo manual inmediato.
+
+---
+
 ## 🛡️ Estructura del Proyecto
 
 ```text
@@ -80,4 +170,4 @@ flowchart LR
 
 ---
 
-*Desarrollado con arquitectura cuantitativa de grado institucional para **@MrProezas**.*
+*Desarrollado con arquitectura cuantitativa de grado institucional.*

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
-  <title>BTC Quant Terminal V6.5 - @MrProezas Edition</title>
+  <title>BTC Quant Terminal V6.5 - Pro Edition</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -1576,7 +1576,7 @@
         <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14.5v-9l6 4.5-6 4.5z"/></svg>
       </div>
       <div class="brand-titles">
-        <h1>BTC Quant Terminal V6.5 <span class="edition-tag">@MrProezas Edition</span></h1>
+        <h1>BTC Quant Terminal V6.5 <span class="edition-tag">Pro Edition</span></h1>
         <div class="sub-desc">
           <span class="feed-status-dot" id="feedStatusDot"></span>
           <span id="feedStatusLabel">CONECTANDO BINANCE SPOT/FUTURES...</span>
@@ -1612,6 +1612,9 @@
 
     <!-- ACTIONS -->
     <div class="header-actions">
+      <button class="btn btn-sm btn-telegram-test" id="btnSendTestTelegram" title="Enviar mensaje de prueba a Telegram">
+        <span>📲</span> Test Telegram
+      </button>
       <button class="btn btn-outline btn-sm" id="btnToggleAudio" title="Sonido de Alertas">
         <span id="audioIcon">🔊</span> Audio: <span id="audioStateText">ON</span>
       </button>
@@ -1640,7 +1643,7 @@
       </label>
       <span style="color:var(--text-dim);">|</span>
       <span style="color:var(--text-dim);">DESTINO:</span>
-      <strong style="color:var(--green-bull); font-size:11px;">@MrProezas (159239770)</strong>
+      <strong id="lblTelegramDest" style="color:var(--green-bull); font-size:11px;">TELEGRAM GUARDIAN</strong>
       <span class="session-badge overlap" style="padding:2px 6px;">BOT ACTIVO</span>
     </div>
   </div>
@@ -2140,7 +2143,7 @@
         <span>🧬</span> Calibrador Basado en Mis Trades
       </button>
       <button class="drawer-tab-btn" data-tab="tabTelegramLog">
-        <span>📨</span> Auditoría Telegram @MrProezas
+        <span>📨</span> Auditoría Telegram 24/7
       </button>
     </div>
 
@@ -2310,7 +2313,7 @@
     <!-- TAB 4: TELEGRAM LOGS -->
     <div class="drawer-tab-pane" id="tabTelegramLog">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-        <span style="font-size:12px; font-weight:700;">REGISTRO DE ALERTAS ENVIADAS A TELEGRAM (@MrProezas)</span>
+        <span style="font-size:12px; font-weight:700;">REGISTRO DE ALERTAS ENVIADAS A TELEGRAM</span>
         <button class="btn btn-outline btn-sm" id="btnClearTgLogs">Limpiar Log</button>
       </div>
       <div id="telegramLogsContainer" style="max-height:180px; overflow-y:auto; background:var(--bg-card-subtle); border:1px solid var(--border-color); border-radius:var(--radius-sm);">
@@ -2326,14 +2329,14 @@
   <!-- JAVASCRIPT APPLICATION -->
   <script>
     /* ==========================================================================
-       BTC QUANT TERMINAL V6.5 - @MrProezas Edition
+       BTC QUANT TERMINAL V6.5 - Pro Edition
        Full-Stack Production Architecture
        ========================================================================== */
 
     // 1. CONFIGURATION & TELEGRAM CREDENTIALS (Protección Privada LocalStorage)
     const TELEGRAM_CONFIG = {
-      botToken: localStorage.getItem('btc_quant_telegram_bot_token') || '',
-      chatId: localStorage.getItem('btc_quant_telegram_chat_id') || '159239770',
+      botToken: localStorage.getItem('TELEGRAM_BOT_TOKEN') || localStorage.getItem('btc_quant_telegram_bot_token') || '',
+      chatId: localStorage.getItem('TELEGRAM_CHAT_ID') || localStorage.getItem('btc_quant_telegram_chat_id') || '',
       get endpoint() {
         return this.botToken ? `https://api.telegram.org/bot${this.botToken}/sendMessage` : '';
       }
@@ -2490,7 +2493,7 @@
       }, duration);
     }
 
-    // 5. TELEGRAM MESSAGING SYSTEM (@MrProezas Integration)
+    // 5. TELEGRAM MESSAGING SYSTEM
     function escapeTelegramHtml(str) {
       if (!str) return '';
       return String(str)
@@ -2506,7 +2509,7 @@
       switch (type) {
         case 'TEST':
           text = `⚡ <b>[TEST CONEXIÓN] BTC Quant Terminal V6.5</b>\n` +
-                 `👤 <b>Operador:</b> @MrProezas (ID: <code>${TELEGRAM_CONFIG.chatId}</code>)\n` +
+                 `👤 <b>Operador:</b> Pro Trader (ID: <code>${TELEGRAM_CONFIG.chatId || 'Configurado'}</code>)\n` +
                  `📡 <b>Estado del Enlace:</b> 🟢 100% OPERATIVO\n` +
                  `💰 <b>Precio BTC Actual:</b> $${(STATE.currentPrice || 0).toLocaleString('en-US', {minimumFractionDigits: 2})}\n` +
                  `⏱ <b>Timestamp:</b> ${nowUtc}\n` +
@@ -2600,26 +2603,35 @@
 
       logTelegramAudit(type, text);
 
-      if (!TELEGRAM_CONFIG.botToken) {
-        if (type === 'TEST') {
-          const inputToken = prompt('🔑 [CONFIGURACIÓN TELEGRAM PRIVADA]\nIntroduce tu Telegram Bot Token para habilitar alertas web:\n(Se guardará únicamente en tu navegador LocalStorage y NUNCA se sube a GitHub):');
-          if (inputToken && inputToken.trim()) {
-            TELEGRAM_CONFIG.botToken = inputToken.trim();
-            localStorage.setItem('btc_quant_telegram_bot_token', inputToken.trim());
-          } else {
-            showToast('Alerta cancelada: Falta configurar el Bot Token.', 'warning');
-            return;
+      if (!TELEGRAM_CONFIG.botToken || !TELEGRAM_CONFIG.chatId) {
+        if (type === 'TEST' || !TELEGRAM_CONFIG.botToken) {
+          if (!TELEGRAM_CONFIG.botToken) {
+            const inputToken = prompt('🔑 [CONFIGURACIÓN TELEGRAM PRIVADA]\nIntroduce tu Telegram Bot Token (TELEGRAM_BOT_TOKEN):\n(Se guardará únicamente en tu navegador LocalStorage y NUNCA se sube a GitHub):', '');
+            if (inputToken && inputToken.trim()) {
+              TELEGRAM_CONFIG.botToken = inputToken.trim();
+              localStorage.setItem('TELEGRAM_BOT_TOKEN', inputToken.trim());
+              localStorage.setItem('btc_quant_telegram_bot_token', inputToken.trim());
+            } else {
+              showToast('Alerta cancelada: Falta configurar el Bot Token.', 'warning');
+              return null;
+            }
           }
           if (!TELEGRAM_CONFIG.chatId) {
-            const inputChat = prompt('👤 Introduce tu Telegram Chat ID:', '159239770');
+            const inputChat = prompt('👤 Introduce tu Telegram Chat ID (TELEGRAM_CHAT_ID):\n(Se guardará únicamente en tu navegador LocalStorage):', '');
             if (inputChat && inputChat.trim()) {
               TELEGRAM_CONFIG.chatId = inputChat.trim();
+              localStorage.setItem('TELEGRAM_CHAT_ID', inputChat.trim());
               localStorage.setItem('btc_quant_telegram_chat_id', inputChat.trim());
+              const lblTg = document.getElementById('lblTelegramDest');
+              if (lblTg) lblTg.textContent = `ID: ${inputChat.trim()}`;
+            } else {
+              showToast('Alerta cancelada: Falta configurar el Chat ID.', 'warning');
+              return null;
             }
           }
         } else {
-          console.warn('[TELEGRAM] Alerta web omitida: Token no configurado en LocalStorage.');
-          return;
+          console.warn('[TELEGRAM] Alerta web omitida: Credenciales no configuradas en LocalStorage.');
+          return null;
         }
       }
 
@@ -2636,7 +2648,7 @@
 
         const data = await response.json();
         if (data.ok) {
-          showToast(`Telegram enviado con éxito a @MrProezas`, 'success');
+          showToast('Telegram enviado con éxito', 'success');
         } else {
           console.warn('Telegram response not ok:', data);
           showToast(`Telegram rechazó mensaje: ${data.description || 'Error de formato'}`, 'warning', 6000);
@@ -4885,7 +4897,7 @@
         sessionBadge.className = 'session-badge';
       }
 
-      // 1. Auto Telegram Signal Alert Dispatcher (@MrProezas)
+      // 1. Auto Telegram Signal Alert Dispatcher
       checkAndDispatchSignalAlert(res, res.curPrice);
 
       // 2. Auto-execution in simulator if enabled
@@ -4928,7 +4940,7 @@
       // Audio feedback
       sound.playEntry();
 
-      // Dispatch alert directly to Telegram @MrProezas
+      // Dispatch alert directly to Telegram
       sendTelegramAlert('ENTRY', {
         direction: evalRes.direction,
         entryPrice: currentPrice,
@@ -4948,8 +4960,8 @@
       });
 
       const toastMsg = evalRes.isTierAPlus
-        ? `🔔 💎 ¡SEÑAL A+ ENVIADA A @MrProezas! Doble Tamaño $40,000 USD (${evalRes.direction} ${evalRes.score}%)`
-        : `🔔 ALERTA AUTOMÁTICA ENVIADA A @MrProezas: Señal Clara [${evalRes.direction}] (${evalRes.score}%)`;
+        ? `🔔 💎 ¡SEÑAL A+ ENVIADA A TELEGRAM! Doble Tamaño $40,000 USD (${evalRes.direction} ${evalRes.score}%)`
+        : `🔔 ALERTA AUTOMÁTICA ENVIADA A TELEGRAM: Señal Clara [${evalRes.direction}] (${evalRes.score}%)`;
       showToast(toastMsg, 'success', 6000);
     }
 
@@ -6327,6 +6339,21 @@
         if (QUANT_CONFIG.audioEnabled) sound.playPing();
       });
 
+      // 2. Telegram Test Message button
+      const btnSendTestTelegram = document.getElementById('btnSendTestTelegram');
+      if (btnSendTestTelegram) {
+        btnSendTestTelegram.addEventListener('click', async () => {
+          showToast('Enviando mensaje de prueba a Telegram...', 'info');
+          await sendTelegramAlert('TEST');
+        });
+      }
+
+      // Update destination badge if chatId exists in localStorage
+      const lblTgDest = document.getElementById('lblTelegramDest');
+      if (lblTgDest && TELEGRAM_CONFIG.chatId) {
+        lblTgDest.textContent = `ID: ${TELEGRAM_CONFIG.chatId}`;
+      }
+
       // 3. Refresh Data button
       document.getElementById('btnRefreshData').addEventListener('click', () => {
         loadHistoricalKlines(QUANT_CONFIG.timeframe);
@@ -6650,7 +6677,7 @@
 
     // 19. TERMINAL INITIALIZATION ENTRY POINT
     window.addEventListener('DOMContentLoaded', () => {
-      console.log('Inicializando BTC Quant Terminal V6.5 - @MrProezas Edition...');
+      console.log('Inicializando BTC Quant Terminal V6.5 - Pro Edition...');
       loadJournal();
       attachEventListeners();
       setupChartInteractions();

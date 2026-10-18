@@ -99,7 +99,7 @@ def send_telegram_alert(text):
         with urllib.request.urlopen(req, timeout=10) as resp:
             res_data = json.loads(resp.read().decode('utf-8'))
             if res_data.get('ok'):
-                print("[TELEGRAM] Alerta entregada con éxito a @MrProezas.")
+                print("[TELEGRAM] Alerta entregada con éxito a Telegram.")
                 return True
             else:
                 print(f"[TELEGRAM] Error respuesta Telegram: {res_data}")
@@ -1038,7 +1038,7 @@ def main():
         if last_alert_key == cur_candle_key:
             print(f"[ALERT SKIP] Alerta ya enviada previamente para la vela {cur_candle_key}.")
         else:
-            print(f"[SEÑAL CLARA DETECTADA] ¡Score {sig['score']}%! Despachando a Telegram @MrProezas...")
+            print(f"[SEÑAL CLARA DETECTADA] ¡Score {sig['score']}%! Despachando a Telegram...")
             opt = sig.get('optimal_entry', {})
             opt_str = ""
             if opt:
@@ -1122,4 +1122,25 @@ def main():
         print(f"[STATUS] Sin señal de disparo (Score {sig['score']}% < {QUANT_CONFIG['min_score_threshold']}%).")
 
 if __name__ == '__main__':
+    if '--test' in sys.argv or '-t' in sys.argv:
+        print("[TEST] Ejecutando prueba de conexión con Telegram vía Secrets / .env local...")
+        if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+            print("[TEST ERROR] Faltan TELEGRAM_BOT_TOKEN o TELEGRAM_CHAT_ID.")
+            print("[GUÍA] Define estas variables en tu archivo .env local o en GitHub Secrets.")
+            sys.exit(1)
+        now_utc = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
+        test_msg = (
+            f"⚡ <b>[TEST CONEXIÓN] BTC Quant Terminal V6.5</b>\n"
+            f"📡 <b>Estado del Enlace:</b> 🟢 100% OPERATIVO\n"
+            f"🔐 <b>Origen de Claves:</b> GitHub Secrets / .env local\n"
+            f"⏱ <b>Timestamp:</b> {now_utc}\n"
+            f"🎯 <i>Listo para recibir alertas cuantitativas 24/7.</i>"
+        )
+        ok = send_telegram_alert(test_msg)
+        if ok:
+            print("[TEST ÉXITO] Mensaje de prueba entregado correctamente a Telegram.")
+        else:
+            print("[TEST FALLO] No se pudo entregar el mensaje a Telegram.")
+        sys.exit(0 if ok else 1)
+
     main()
