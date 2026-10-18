@@ -12,7 +12,7 @@ import json
 import math
 import urllib.request
 import urllib.error
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 # 1. CONFIGURATION & CREDENTIALS
 # Priority: Environment Variables (GitHub Secrets) -> Local .env file
@@ -66,7 +66,8 @@ QUANT_CONFIG = {
     'tier_a_plus_notional_usdt': 40000.0,
     'default_trade_size_btc': 0.25,
     'tier_a_plus_trade_size_btc': 0.50,
-    'leverage': 20
+    'leverage': 20,
+    'signal_validity_minutes': 120 # Ventana de validez: 2 horas (24 ciclos del cron de 5 min) para esperar el retest
 }
 
 STATE_FILE = 'state.json'
@@ -1028,6 +1029,119 @@ def monitor_cloud_position(cur_price, klines):
     with open(STATE_FILE, 'w') as f:
         json.dump(state, f, indent=2)
 
+def check_cloud_pending_setup(cur_price, state, klines):
+    pending = state.get('pending_setup')
+    if not pending or state.get('open_position'):
+        return
+
+    # 1. Comprobar Expiración Temporal (2 horas / 24 ciclos del cron de 5 min)
+    created_at_str = pending.get('created_at')
+    if created_at_str:
+        try:
+            created_dt = datetime.fromisoformat(created_at_str)
+            elapsed_min = (datetime.now(timezone.utc) - created_dt).total_seconds() / 60.0
+            max_wait_min = QUANT_CONFIG.get('signal_validity_minutes', 120)
+            if elapsed_min > max_wait_min:
+                print(f"[RETEST SETUP EXPIRADO] La señal {pending['direction']} expiró tras {elapsed_min:.0f} min sin retest.")
+                msg = (
+                    f"⌛ <b>SEÑAL PENDIENTE EXPIRADA [CLOUD GUARDIAN]</b>\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                    f"Dirección: <b>{pending['direction']}</b>\n"
+                    f"⏱ Tiempo: 2 horas sin alcanzar zona de retest.\n"
+                    f"💡 Cancelada por protección de capital para evitar entradas tardías en movimientos agotados."
+                )
+                send_telegram_alert(msg)
+                state['pending_setup'] = None
+                state['last_updated'] = datetime.now(timezone.utc).isoformat()
+                with open(STATE_FILE, 'w') as f:
+                    json.dump(state, f, indent=2)
+                return
+        except Exception:
+            pass
+
+    # 2. Comprobar Invalidación de Estructura
+    is_long = pending['direction'] == 'LONG'
+    sl = pending.get('sl', 0)
+    chop = calculate_choppiness(klines, 14)
+    invalidated = False
+    invalidation_reason = ""
+
+    if is_long and cur_price <= sl:
+        invalidated = True
+        invalidation_reason = f"Precio cayó por debajo del Stop previsto (${sl:,.2f})"
+    elif not is_long and cur_price >= sl:
+        invalidated = True
+        invalidation_reason = f"Precio superó el Stop previsto (${sl:,.2f})"
+    elif chop > 61.8:
+        invalidated = True
+        invalidation_reason = f"Mercado entró en Choppiness extremo ({chop:.1f} > 61.8)"
+
+    if invalidated:
+        print(f"[RETEST SETUP INVALIDADO] {invalidation_reason}")
+        msg = (
+            f"🛑 <b>SEÑAL PENDIENTE CANCELADA [CLOUD GUARDIAN]</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"Dirección: <b>{pending['direction']}</b>\n"
+            f"⚠️ Causa: {invalidation_reason}\n"
+            f"🛡 El mercado cambió de estructura antes de completar el retest."
+        )
+        send_telegram_alert(msg)
+        state['pending_setup'] = None
+        state['last_updated'] = datetime.now(timezone.utc).isoformat()
+        with open(STATE_FILE, 'w') as f:
+            json.dump(state, f, indent=2)
+        return
+
+    # 3. Comprobar si el Precio ha entrado en la Zona de Retest
+    zone_min = pending.get('zone_min', cur_price)
+    zone_max = pending.get('zone_max', cur_price)
+    retest_hit = False
+
+    if is_long:
+        # En Long, el pullback ocurre cuando el precio retrocede hacia soporte
+        retest_hit = (cur_price <= zone_max)
+    else:
+        # En Short, el rebote ocurre cuando el precio rebota hacia resistencia
+        retest_hit = (cur_price >= zone_min)
+
+    if retest_hit:
+        trade_id = f"CLOUD_{int(datetime.now(timezone.utc).timestamp())}"
+        state['open_position'] = {
+            'id': trade_id,
+            'direction': pending['direction'],
+            'entry_price': cur_price,
+            'notional': pending.get('notional', QUANT_CONFIG.get('trade_notional_usdt', 20000.0)),
+            'btc_qty': pending.get('btc_qty', 0.25),
+            'is_tier_a_plus': pending.get('is_tier_a_plus', False),
+            'tier': pending.get('tier', 'ESTÁNDAR'),
+            'sl': pending['sl'],
+            'tp1': pending['tp1'],
+            'tp1_pts': pending['tp1_pts'],
+            'tp2': pending['tp2'],
+            'tp2_pts': pending['tp2_pts'],
+            'tp1_hit': False,
+            'early_exit_warned': False,
+            'opened_at': datetime.now(timezone.utc).isoformat()
+        }
+        saving_pts = abs(cur_price - pending.get('signal_price', cur_price))
+        print(f"[CLOUD PAPER TRADING] ¡Retest completado! Entrada {pending['direction']} ejecutada en ${cur_price:,.2f} (Ahorro ~{saving_pts:.0f} pts)")
+        msg = (
+            f"🎯 <b>¡ENTRADA POR RETEST EJECUTADA [CLOUD GUARDIAN]!</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"Dirección: <b>{pending['direction']}</b> (Tier: <b>{pending.get('tier', 'ESTÁNDAR')}</b>)\n"
+            f"💵 <b>Precio Entrada Óptimo:</b> ${cur_price:,.2f}\n"
+            f"🎁 <b>Ventaja Capturada:</b> Ahorro de ~{saving_pts:.0f} pts por esperar el retest\n"
+            f"🛑 <b>Stop-Loss:</b> ${pending['sl']:,.2f}\n"
+            f"🎯 <b>TP1 (75% Parcial):</b> ${pending['tp1']:,.2f} (+{pending['tp1_pts']} pts)\n"
+            f"🏁 <b>TP2 (25% Corredor):</b> ${pending['tp2']:,.2f} (+{pending['tp2_pts']} pts)\n"
+            f"🛡 <i>Posición abierta en zona de valor institucional sin perseguir el precio.</i>"
+        )
+        send_telegram_alert(msg)
+        state['pending_setup'] = None
+        state['last_updated'] = datetime.now(timezone.utc).isoformat()
+        with open(STATE_FILE, 'w') as f:
+            json.dump(state, f, indent=2)
+
 # 7. MAIN RUNNER
 def main():
     print(f"[{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}] Iniciando escaneo cuántico 24/7 de BTC...")
@@ -1077,6 +1191,9 @@ def main():
     # Monitor any existing position in cloud state
     monitor_cloud_position(cur_price, klines)
 
+    # Check and execute pending setup waiting for retest
+    check_cloud_pending_setup(cur_price, state, klines)
+
     # Evaluate new entry signals with OI Delta filter
     sig = evaluate_signal(klines, oi_delta=oi_delta)
     if not sig:
@@ -1118,20 +1235,20 @@ def main():
 
             if is_a_plus:
                 header_title = (
-                    f"💎 <b>¡ÍNDICE DE CONFLUENCIA ÓPTIMO A+ [{sig['direction']}]!</b>\n"
+                    f"💎 <b>[CLOUD GUARDIAN 24/7] ¡ÍNDICE DE CONFLUENCIA ÓPTIMO A+ [{sig['direction']}]!</b>\n"
                     f"🔥 <b>CONVICCIÓN INSTITUCIONAL MÁXIMA (DOBLE TAMAÑO $40,000 USD)</b>\n"
                     f"⚡ <i>80% Win Rate Histórico • Profit Factor 5.51</i>\n"
                 )
                 sizing_line = f"💼 <b>Dimensionamiento Dual A+:</b> Posición ${notional:,.0f} USD ({btc_qty:.2f} BTC) | Margen: ${margin_used:,.0f} USD ({free_buffer_pct}% Libre)\n"
             elif timing_status == 'ENTER_NOW':
                 header_title = (
-                    f"⚡ <b>¡ÍNDICE DE CONFLUENCIA ÓPTIMO ACTIVO [{sig['direction']}]!</b>\n"
+                    f"⚡ <b>[CLOUD GUARDIAN 24/7] ¡ÍNDICE DE CONFLUENCIA ÓPTIMO [{sig['direction']}]!</b>\n"
                     f"🎯 <b>NIVEL DE ENTRADA RETEST INMEDIATO CONFIRMADO</b>\n"
                 )
                 sizing_line = f"💼 <b>Dimensionamiento Estándar:</b> Posición ${notional:,.0f} USD ({btc_qty:.2f} BTC) | Margen: ${margin_used:,.0f} USD ({free_buffer_pct}% Libre)\n"
             else:
                 header_title = (
-                    f"🚀 <b>¡ÍNDICE DE CONFLUENCIA ÓPTIMO ACTIVO PARA OPERAR [{sig['direction']}]!</b>\n"
+                    f"🚀 <b>[CLOUD GUARDIAN 24/7] ¡ÍNDICE DE CONFLUENCIA ÓPTIMO [{sig['direction']}]!</b>\n"
                 )
                 sizing_line = f"💼 <b>Dimensionamiento Estándar:</b> Posición ${notional:,.0f} USD ({btc_qty:.2f} BTC) | Margen: ${margin_used:,.0f} USD ({free_buffer_pct}% Libre)\n"
 
@@ -1184,32 +1301,60 @@ def main():
                     'timestamp': datetime.now(timezone.utc).isoformat()
                 }, f, indent=2)
 
-            # Registrar posición autónoma en la nube si no hay una activa
-            if not state.get('open_position'):
-                trade_id = f"CLOUD_{int(datetime.now(timezone.utc).timestamp())}"
-                state['open_position'] = {
-                    'id': trade_id,
-                    'direction': sig['direction'],
-                    'entry_price': sig['cur_price'],
-                    'notional': notional,
-                    'btc_qty': btc_qty,
-                    'is_tier_a_plus': is_a_plus,
-                    'tier': sig.get('tier', 'ESTÁNDAR'),
-                    'sl': sig['sl'],
-                    'tp1': sig['tp1'],
-                    'tp1_pts': sig['tp1_pts'],
-                    'tp2': sig['tp2'],
-                    'tp2_pts': sig['tp2_pts'],
-                    'tp1_hit': False,
-                    'early_exit_warned': False,
-                    'opened_at': datetime.now(timezone.utc).isoformat()
-                }
-                state['last_updated'] = datetime.now(timezone.utc).isoformat()
-                with open(STATE_FILE, 'w') as f:
-                    json.dump(state, f, indent=2)
-                print(f"[CLOUD PAPER TRADING] Nueva posición autónoma abierta: {sig['direction']} en ${sig['cur_price']:,.2f} ({trade_id})")
+            # Lógica de Disparo Respetando Retest:
+            if timing_status == 'WAIT_PULLBACK':
+                # Si el precio está sobreextendido, no entrar a mercado ciegamente. Armar señal pendiente de retest por 2 horas
+                if not state.get('open_position') and not state.get('pending_setup'):
+                    state['pending_setup'] = {
+                        'direction': sig['direction'],
+                        'score': sig['score'],
+                        'tier': sig.get('tier', 'ESTÁNDAR'),
+                        'is_tier_a_plus': is_a_plus,
+                        'signal_price': sig['cur_price'],
+                        'btc_qty': btc_qty,
+                        'notional': notional,
+                        'sl': sig['sl'],
+                        'sl_pts': sig['sl_pts'],
+                        'tp1': sig['tp1'],
+                        'tp1_pts': sig['tp1_pts'],
+                        'tp2': sig['tp2'],
+                        'tp2_pts': sig['tp2_pts'],
+                        'zone_min': opt.get('zone_min', sig['cur_price']),
+                        'zone_max': opt.get('zone_max', sig['cur_price']),
+                        'optimal_price': opt.get('optimal_price', sig['cur_price']),
+                        'created_at': datetime.now(timezone.utc).isoformat()
+                    }
+                    state['last_updated'] = datetime.now(timezone.utc).isoformat()
+                    with open(STATE_FILE, 'w') as f:
+                        json.dump(state, f, indent=2)
+                    print(f"[CLOUD PAPER TRADING] Señal {sig['direction']} armada en espera de retest (${opt.get('zone_min'):,.2f} - ${opt.get('zone_max'):,.2f}). Válida por 2 horas (24 ciclos del cron).")
             else:
-                print(f"[CLOUD PAPER TRADING] Posición {state['open_position']['direction']} aún abierta. No se abren posiciones concurrentes.")
+                # El precio ya está en zona de retest (ENTER_NOW o PULLBACK_FAVORABLE)
+                if not state.get('open_position'):
+                    trade_id = f"CLOUD_{int(datetime.now(timezone.utc).timestamp())}"
+                    state['open_position'] = {
+                        'id': trade_id,
+                        'direction': sig['direction'],
+                        'entry_price': sig['cur_price'],
+                        'notional': notional,
+                        'btc_qty': btc_qty,
+                        'is_tier_a_plus': is_a_plus,
+                        'tier': sig.get('tier', 'ESTÁNDAR'),
+                        'sl': sig['sl'],
+                        'tp1': sig['tp1'],
+                        'tp1_pts': sig['tp1_pts'],
+                        'tp2': sig['tp2'],
+                        'tp2_pts': sig['tp2_pts'],
+                        'tp1_hit': False,
+                        'early_exit_warned': False,
+                        'opened_at': datetime.now(timezone.utc).isoformat()
+                    }
+                    state['last_updated'] = datetime.now(timezone.utc).isoformat()
+                    with open(STATE_FILE, 'w') as f:
+                        json.dump(state, f, indent=2)
+                    print(f"[CLOUD PAPER TRADING] Nueva posición autónoma abierta en retest: {sig['direction']} en ${sig['cur_price']:,.2f} ({trade_id})")
+                else:
+                    print(f"[CLOUD PAPER TRADING] Posición {state['open_position']['direction']} aún abierta. No se abren posiciones concurrentes.")
     else:
         print(f"[STATUS] Sin señal de disparo (Score {sig['score']}% < {QUANT_CONFIG['min_score_threshold']}%).")
 

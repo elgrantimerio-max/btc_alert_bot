@@ -7,6 +7,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Carga privada local de credenciales (en .gitignore, no afecta a GitHub) -->
+  <script src="telegram_secrets.js" onerror=""></script>
   
   <style>
     :root {
@@ -1194,6 +1196,58 @@
       to { transform: translateX(0); opacity: 1; }
     }
 
+    /* QUANT MODAL STYLES */
+    .quant-modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.78);
+      backdrop-filter: blur(5px);
+      z-index: 10000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .quant-modal-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-accent);
+      border-radius: var(--radius-md);
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+      width: 100%;
+      max-width: 480px;
+      overflow: hidden;
+      animation: modalFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    @keyframes modalFadeIn {
+      from { opacity: 0; transform: scale(0.95); }
+      to { opacity: 1; transform: scale(1); }
+    }
+    .quant-modal-header {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--bg-card-subtle);
+    }
+    .quant-modal-body {
+      padding: 18px;
+    }
+    .quant-input {
+      background: var(--bg-darkest);
+      border: 1px solid var(--border-accent);
+      border-radius: var(--radius-sm);
+      color: var(--text-main);
+      padding: 9px 12px;
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .quant-input:focus {
+      border-color: var(--cyan-vwap);
+      box-shadow: 0 0 10px rgba(0, 229, 255, 0.25);
+    }
+
     /* MULTI-TIMEFRAME CONFLUENCE MATRIX (Estilos Base Globales) */
     .mtf-matrix-container {
       display: flex;
@@ -1709,6 +1763,9 @@
       <button class="btn btn-sm btn-telegram-test" id="btnSendTestTelegram" title="Enviar mensaje de prueba a Telegram">
         <span>📲</span> Test Telegram
       </button>
+      <button class="btn btn-outline btn-sm" id="btnOpenTgConfig" title="Configurar credenciales de Telegram" style="padding:6px 9px;">
+        ⚙️
+      </button>
       <button class="btn btn-outline btn-sm" id="btnToggleAudio" title="Sonido de Alertas">
         <span id="audioIcon">🔊</span> Audio: <span id="audioStateText">ON</span>
       </button>
@@ -1737,8 +1794,8 @@
       </label>
       <span style="color:var(--text-dim);">|</span>
       <span style="color:var(--text-dim);">DESTINO:</span>
-      <strong id="lblTelegramDest" style="color:var(--green-bull); font-size:11px;">TELEGRAM GUARDIAN</strong>
-      <span class="session-badge overlap" style="padding:2px 6px;">BOT ACTIVO</span>
+      <strong id="lblTelegramDest" style="color:var(--green-bull); font-size:11px; cursor:pointer;" title="Click para ver/configurar enlace con Telegram">TELEGRAM GUARDIAN</strong>
+      <span class="session-badge overlap" id="badgeBotStatus" style="padding:2px 6px; cursor:pointer;" title="Click para configurar">BOT ACTIVO</span>
       <span style="color:var(--text-dim);">|</span>
       <span class="session-badge" id="subBarPaperBadge" style="background:rgba(0, 240, 144, 0.15); color:var(--green-bull); border:1px solid rgba(0, 240, 144, 0.4); font-size:10px; font-weight:700;">
         <span class="live-pulse" style="margin-right:4px;"></span> PAPER TRADING: ACTIVO
@@ -1818,6 +1875,11 @@
             </div>
 
             <!-- Alerts inside card -->
+            <div id="posPendingRetestPill" style="display:none; background:rgba(245,158,11,0.15); border:1px solid rgba(245,158,11,0.4); color:#fbbf24; font-size:10.5px; font-weight:700; padding:6px 8px; border-radius:4px; text-align:center; font-family:var(--font-mono); margin-bottom:6px;">
+              <div id="posPendingRetestText">⏳ AL ACECHO DE RETEST: Esperando zona de valor...</div>
+              <div id="posPendingRetestDetails" style="font-size:9.5px; opacity:0.85; margin-top:2px;"></div>
+            </div>
+
             <div class="pos-be-alert-pill" id="posBEPill">
               🛡️ STOP MOVIDO A BREAK-EVEN (+400 PTS) • RISK-FREE
             </div>
@@ -2187,11 +2249,11 @@
               <span class="mtf-subhint" id="mtfHint5m">SCALP</span>
             </div>
             <!-- 15m -->
-            <div class="mtf-row" data-tf="15m" title="Clic para cambiar gráfico a 15m (Temporalidad Bot 24/7)">
+            <div class="mtf-row" data-tf="15m" title="Clic para cambiar gráfico a 15m (Gatillo / Retest Intradía)">
               <span class="mtf-tf-label">15m</span>
               <div class="mtf-status-pill neutral" id="mtfPill15m">⚪ ANALIZANDO</div>
               <span class="mtf-score-val" id="mtfScore15m">--%</span>
-              <span class="mtf-subhint" id="mtfHint15m" style="color:var(--cyan-vwap); font-weight:700;">BOT ⚡</span>
+              <span class="mtf-subhint" id="mtfHint15m" style="color:var(--cyan-vwap); font-weight:700;">GATILLO ⏱️</span>
             </div>
             <!-- 1h -->
             <div class="mtf-row" data-tf="1h" title="Clic para cambiar gráfico a 1h (Estructura Intradía)">
@@ -2201,25 +2263,28 @@
               <span class="mtf-subhint" id="mtfHint1h">ESTRUCT</span>
             </div>
             <!-- 4h -->
-            <div class="mtf-row" data-tf="4h" title="Clic para cambiar gráfico a 4h (Filtro Macro / Kumo)">
+            <div class="mtf-row" data-tf="4h" title="Clic para cambiar gráfico a 4h (Temporalidad Maestra Bot 24/7)">
               <span class="mtf-tf-label">4h</span>
               <div class="mtf-status-pill neutral" id="mtfPill4h">⚪ ANALIZANDO</div>
               <span class="mtf-score-val" id="mtfScore4h">--%</span>
-              <span class="mtf-subhint" id="mtfHint4h" style="color:var(--gold-accent); font-weight:700;">MACRO</span>
+              <span class="mtf-subhint" id="mtfHint4h" style="color:var(--gold-accent); font-weight:700;">BOT 24/7 🎯</span>
             </div>
             <!-- 1d -->
             <div class="mtf-row" data-tf="1d" title="Clic para cambiar gráfico a 1d (Tendencia General Diaria)">
               <span class="mtf-tf-label">1d</span>
               <div class="mtf-status-pill neutral" id="mtfPill1d">⚪ ANALIZANDO</div>
               <span class="mtf-score-val" id="mtfScore1d">--%</span>
-              <span class="mtf-subhint" id="mtfHint1d" style="color:#f97316; font-weight:700;">DIARIO 🌐</span>
+              <span class="mtf-subhint" id="mtfHint1d" style="color:#f97316; font-weight:700;">MACRO 🌐</span>
             </div>
           </div>
 
           <!-- Multi-Timeframe Consensus Banner -->
-          <div class="mtf-consensus-box mixed" id="mtfConsensusBox">
-            <span id="mtfConsensusIcon">⏳</span>
-            <span id="mtfConsensusText">SINCRONIZANDO FRACTALIDAD...</span>
+          <div class="mtf-consensus-box mixed" id="mtfConsensusBox" style="flex-direction:column; gap:2px; text-align:center;">
+            <div style="display:flex; align-items:center; justify-content:center; gap:5px;">
+              <span id="mtfConsensusIcon">⏳</span>
+              <span id="mtfConsensusText">SINCRONIZANDO FRACTALIDAD...</span>
+            </div>
+            <div id="mtfConsensusAdvice" style="font-size:9.5px; opacity:0.88; font-weight:500;"></div>
           </div>
         </div>
       </div>
@@ -2476,6 +2541,61 @@
 
   </div>
 
+  <!-- MODAL DE CONFIGURACIÓN DE TELEGRAM -->
+  <div id="modalTelegramConfig" class="quant-modal-backdrop" style="display:none;">
+    <div class="quant-modal-card">
+      <div class="quant-modal-header">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="font-size:20px;">📲</span>
+          <div>
+            <div style="font-weight:700; font-size:14px; color:var(--text-main);">Configuración de Alertas Telegram 24/7</div>
+            <div style="font-size:11px; color:var(--text-dim);">Enlace seguro para Web y Cloud Guardian</div>
+          </div>
+        </div>
+        <button class="btn btn-outline btn-sm" id="btnCloseTgConfigModal" style="padding:2px 8px;" type="button">✕</button>
+      </div>
+
+      <div class="quant-modal-body">
+        <div id="tgConfigStatusAlert" style="margin-bottom:14px; padding:10px 14px; border-radius:var(--radius-sm); font-size:12px; font-weight:600; display:flex; align-items:center; gap:8px; background:rgba(0,240,144,0.1); border:1px solid rgba(0,240,144,0.3); color:var(--green-bull);">
+          <span>🟢</span> <span>Bot enlazado y listo para recibir alertas.</span>
+        </div>
+
+        <div style="margin-bottom:12px;">
+          <label style="display:block; font-size:11px; font-weight:700; color:var(--text-muted); margin-bottom:4px;">
+            TELEGRAM BOT TOKEN (API Key de @BotFather)
+          </label>
+          <div style="display:flex; gap:6px;">
+            <input type="password" id="inputTgBotToken" class="quant-input" placeholder="Ej: 8635759809:AAF8YTMV..." style="flex:1; font-family:var(--font-mono); font-size:12px;">
+            <button class="btn btn-outline btn-sm" id="btnToggleTgTokenVis" type="button" title="Mostrar/Ocultar Token">👁️</button>
+          </div>
+          <span style="font-size:10px; color:var(--text-dim);">Se almacena en tu navegador (LocalStorage). NUNCA se sube a GitHub.</span>
+        </div>
+
+        <div style="margin-bottom:14px;">
+          <label style="display:block; font-size:11px; font-weight:700; color:var(--text-muted); margin-bottom:4px;">
+            TELEGRAM CHAT ID
+          </label>
+          <input type="text" id="inputTgChatId" class="quant-input" placeholder="Ej: 159239770" style="width:100%; font-family:var(--font-mono); font-size:12px;">
+          <span style="font-size:10px; color:var(--text-dim);">Tu identificador numérico de Telegram (de @userinfobot o @myidbot).</span>
+        </div>
+
+        <div style="background:rgba(255,255,255,0.03); border:1px dashed var(--border-color); border-radius:var(--radius-sm); padding:10px; font-size:11px; color:var(--text-muted); margin-bottom:16px; line-height:1.4;">
+          💡 <b>Carga Automática Privada:</b> La web lee tus credenciales desde tu archivo local <code>.env</code> o <code>telegram_secrets.js</code> (ambos ignorados en Git). No necesitas introducirlos a mano a menos que quieras cambiarlos.
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
+          <button class="btn btn-outline btn-sm" id="btnTgModalTest" type="button">
+            ⚡ Probar Conexión Ahora
+          </button>
+          <div style="display:flex; gap:8px;">
+            <button class="btn btn-outline btn-sm" id="btnCancelTgModal" type="button">Cancelar</button>
+            <button class="btn btn-bull btn-sm" id="btnSaveTgConfig" type="button">💾 Guardar Credenciales</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- TOAST CONTAINER -->
   <div class="toast-container" id="toastContainer"></div>
 
@@ -2486,14 +2606,23 @@
        Full-Stack Production Architecture
        ========================================================================== */
 
-    // 1. CONFIGURATION & TELEGRAM CREDENTIALS (Protección Privada LocalStorage)
+    // 1. CONFIGURATION & TELEGRAM CREDENTIALS (Sincronización Local / Secrets / LocalStorage)
+    const localSec = window.LOCAL_TELEGRAM_CONFIG || {};
     const TELEGRAM_CONFIG = {
-      botToken: localStorage.getItem('TELEGRAM_BOT_TOKEN') || localStorage.getItem('btc_quant_telegram_bot_token') || '',
-      chatId: localStorage.getItem('TELEGRAM_CHAT_ID') || localStorage.getItem('btc_quant_telegram_chat_id') || '',
+      botToken: localSec.botToken || localStorage.getItem('TELEGRAM_BOT_TOKEN') || localStorage.getItem('btc_quant_telegram_bot_token') || '',
+      chatId: localSec.chatId || localStorage.getItem('TELEGRAM_CHAT_ID') || localStorage.getItem('btc_quant_telegram_chat_id') || '',
       get endpoint() {
         return this.botToken ? `https://api.telegram.org/bot${this.botToken}/sendMessage` : '';
       }
     };
+
+    // Auto-persistencia en LocalStorage para sesiones posteriores
+    if (localSec.botToken && !localStorage.getItem('TELEGRAM_BOT_TOKEN')) {
+      localStorage.setItem('TELEGRAM_BOT_TOKEN', localSec.botToken);
+    }
+    if (localSec.chatId && !localStorage.getItem('TELEGRAM_CHAT_ID')) {
+      localStorage.setItem('TELEGRAM_CHAT_ID', localSec.chatId);
+    }
 
     const QUANT_CONFIG = {
       symbol: 'BTCUSDT',
@@ -2523,7 +2652,8 @@
       showEMA100: true,
       showEMA200: true,
       showIchimoku: false,
-      subChartMode: 'vol_cvd' // 'vol_cvd', 'rsi', or 'ttm_squeeze'
+      subChartMode: 'vol_cvd', // 'vol_cvd', 'rsi', or 'ttm_squeeze'
+      signalValidityMinutes: 120 // Ventana de validez: 2 horas (24 ciclos del cron de 5 min) para esperar el retest
     };
 
     // 2. STATE STORE
@@ -2536,6 +2666,7 @@
       webSocket: null,
       syntheticInterval: null,
       openPosition: null, // active trade object
+      pendingSetup: null, // order pending retest confirmation { direction, optimalEntry, ... }
       journal: [],
       isAutonomousTradingEnabled: localStorage.getItem('btc_quant_autonomous_trading') !== 'false',
       journalFilter: 'ALL', // 'ALL', 'AUTONOMOUS', 'MANUAL'
@@ -2690,11 +2821,11 @@
                             `⏱ <b>Timing Sugerido:</b> ${escapeTelegramHtml(opt.timingAdvice)}\n`;
           }
 
-          let tierHeader = `🚀 <b>NUEVA ENTRADA CUANTITATIVA [${payload.direction}]</b>\n`;
+          let tierHeader = `🚀 <b>[TERMINAL WEB EN VIVO] OPORTUNIDAD QUANT [${payload.direction}]</b>\n`;
           let tierSizingBlock = `💼 <b>Dimensionamiento Estándar:</b> Posición $20,000 USD (0.25 BTC) | Margen $1,000 USD (80% Libre)\n`;
           if (payload.isTierAPlus) {
-            tierHeader = `💎 <b>¡SEÑAL INSTITUCIONAL A+ [${payload.direction}] (DOBLE CANTIDAD $40k)!</b>\n` +
-                         `🔥 <b>CONVICCIÓN MÁXIMA: 80% WIN RATE HISTÓRICO • PROFIT FACTOR 5.51</b>\n`;
+            tierHeader = `💎 <b>[TERMINAL WEB EN VIVO] ¡SEÑAL INSTITUCIONAL A+ [${payload.direction}]!</b>\n` +
+                         `🔥 <b>CONVICCIÓN MÁXIMA: DOBLE CANTIDAD $40,000 USD (80% Win Rate)</b>\n`;
             tierSizingBlock = `💎 <b>Dimensionamiento Dual A+:</b> Posición $40,000 USD (0.50 BTC) | Margen $2,000 USD (60% Libre)\n`;
           }
 
@@ -2712,6 +2843,19 @@
                  `📈 <b>Motivo:</b> ${reasonsFormatted}\n` +
                  `━━━━━━━━━━━━━━━━━━━━\n` +
                  `🔔 <i>Monitoreo activo tick a tick por Exit Guardian.</i>`;
+          break;
+
+        case 'POSITION_OPENED':
+          text = `🤖 <b>[PAPER TRADING AUTÓNOMO] POSICIÓN ${payload.direction} EJECUTADA</b>\n` +
+                 `━━━━━━━━━━━━━━━━━━━━\n` +
+                 `💵 <b>Precio de Entrada:</b> $${(payload.entryPrice || 0).toLocaleString('en-US', {minimumFractionDigits: 2})}\n` +
+                 `💼 <b>Tamaño Posición:</b> ${(payload.actualSize || 0.25).toFixed(2)} BTC ($${((payload.actualSize || 0.25) * (payload.entryPrice || 80000)).toLocaleString('en-US', {maximumFractionDigits: 0})} USD)\n` +
+                 `🛑 <b>Stop-Loss:</b> $${(payload.sl || 0).toLocaleString('en-US', {minimumFractionDigits: 2})} (-${payload.slPts || 500} pts)\n` +
+                 `🎯 <b>TP1 (75% Parcial):</b> $${(payload.tp1 || 0).toLocaleString('en-US', {minimumFractionDigits: 2})} (+${payload.tp1Pts || 900} pts)\n` +
+                 `🏁 <b>TP2 (25% Corredor):</b> $${(payload.tp2 || 0).toLocaleString('en-US', {minimumFractionDigits: 2})} (+${payload.tp2Pts || 1500} pts)\n` +
+                 `🛡 <b>Causa / Retest:</b> ${escapeTelegramHtml(payload.reason || 'Retest confirmado en zona óptima')}\n` +
+                 `━━━━━━━━━━━━━━━━━━━━\n` +
+                 `⏱ <i>Monitoreo activo tick a tick por Exit Guardian.</i>`;
           break;
 
         case 'TP1_HIT':
@@ -2759,35 +2903,14 @@
       logTelegramAudit(type, text);
 
       if (!TELEGRAM_CONFIG.botToken || !TELEGRAM_CONFIG.chatId) {
-        if (type === 'TEST' || !TELEGRAM_CONFIG.botToken) {
-          if (!TELEGRAM_CONFIG.botToken) {
-            const inputToken = prompt('🔑 [CONFIGURACIÓN TELEGRAM PRIVADA]\nIntroduce tu Telegram Bot Token (TELEGRAM_BOT_TOKEN):\n(Se guardará únicamente en tu navegador LocalStorage y NUNCA se sube a GitHub):', '');
-            if (inputToken && inputToken.trim()) {
-              TELEGRAM_CONFIG.botToken = inputToken.trim();
-              localStorage.setItem('TELEGRAM_BOT_TOKEN', inputToken.trim());
-              localStorage.setItem('btc_quant_telegram_bot_token', inputToken.trim());
-            } else {
-              showToast('Alerta cancelada: Falta configurar el Bot Token.', 'warning');
-              return null;
-            }
-          }
-          if (!TELEGRAM_CONFIG.chatId) {
-            const inputChat = prompt('👤 Introduce tu Telegram Chat ID (TELEGRAM_CHAT_ID):\n(Se guardará únicamente en tu navegador LocalStorage):', '');
-            if (inputChat && inputChat.trim()) {
-              TELEGRAM_CONFIG.chatId = inputChat.trim();
-              localStorage.setItem('TELEGRAM_CHAT_ID', inputChat.trim());
-              localStorage.setItem('btc_quant_telegram_chat_id', inputChat.trim());
-              const lblTg = document.getElementById('lblTelegramDest');
-              if (lblTg) lblTg.textContent = `ID: ${inputChat.trim()}`;
-            } else {
-              showToast('Alerta cancelada: Falta configurar el Chat ID.', 'warning');
-              return null;
-            }
-          }
+        console.warn('[TELEGRAM] Alerta web omitida: Credenciales no configuradas.');
+        if (type === 'TEST') {
+          openTelegramConfigModal();
+          showToast('Configura tu Bot Token y Chat ID en la ventana emergente.', 'warning', 5000);
         } else {
-          console.warn('[TELEGRAM] Alerta web omitida: Credenciales no configuradas en LocalStorage.');
-          return null;
+          showToast('⚠️ Señal detectada pero Telegram no configurado. Haz clic en ⚙️ para activar el bot.', 'warning', 6000);
         }
+        return null;
       }
 
       try {
@@ -2803,7 +2926,12 @@
 
         const data = await response.json();
         if (data.ok) {
-          showToast('Telegram enviado con éxito', 'success');
+          if (type === 'TEST') {
+            showToast('✅ ¡Mensaje de prueba enviado con éxito a Telegram!', 'success', 5000);
+          } else {
+            showToast('✅ Alerta enviada a Telegram con éxito', 'success', 4000);
+          }
+          logTelegramAudit('OK', `Alerta enviada: ${type}`);
         } else {
           console.warn('Telegram response not ok:', data);
           showToast(`Telegram rechazó mensaje: ${data.description || 'Error de formato'}`, 'warning', 6000);
@@ -2816,6 +2944,83 @@
         logTelegramAudit('NET_ERROR', `Fallo de red: ${err.message}`);
         return null;
       }
+    }
+
+    // MODAL TELEGRAM CONFIG CONTROLLER
+    function openTelegramConfigModal() {
+      const modal = document.getElementById('modalTelegramConfig');
+      if (!modal) return;
+      const inpToken = document.getElementById('inputTgBotToken');
+      const inpChat = document.getElementById('inputTgChatId');
+      if (inpToken) inpToken.value = TELEGRAM_CONFIG.botToken || '';
+      if (inpChat) inpChat.value = TELEGRAM_CONFIG.chatId || '';
+      updateTelegramModalStatusBadge();
+      modal.style.display = 'flex';
+    }
+
+    function closeTelegramConfigModal() {
+      const modal = document.getElementById('modalTelegramConfig');
+      if (modal) modal.style.display = 'none';
+    }
+
+    function updateTelegramModalStatusBadge() {
+      const el = document.getElementById('tgConfigStatusAlert');
+      if (!el) return;
+      const hasCreds = !!(TELEGRAM_CONFIG.botToken && TELEGRAM_CONFIG.chatId);
+      if (hasCreds) {
+        el.style.background = 'rgba(0,240,144,0.1)';
+        el.style.borderColor = 'rgba(0,240,144,0.3)';
+        el.style.color = 'var(--green-bull)';
+        el.innerHTML = `<span>🟢</span> <span>Bot enlazado (ID: ${TELEGRAM_CONFIG.chatId}). Listo para recibir alertas automáticas.</span>`;
+      } else {
+        el.style.background = 'rgba(245,158,11,0.1)';
+        el.style.borderColor = 'rgba(245,158,11,0.3)';
+        el.style.color = 'var(--gold-accent)';
+        el.innerHTML = `<span>⚠️</span> <span>Faltan credenciales. Introduce tu Bot Token y Chat ID para conectar.</span>`;
+      }
+    }
+
+    function updateTelegramStatusUI() {
+      const isConnected = !!(TELEGRAM_CONFIG.botToken && TELEGRAM_CONFIG.chatId);
+      const lblTgDest = document.getElementById('lblTelegramDest');
+      if (lblTgDest) {
+        if (isConnected) {
+          lblTgDest.textContent = `ID: ${TELEGRAM_CONFIG.chatId}`;
+          lblTgDest.title = `Conectado a Telegram Chat ID: ${TELEGRAM_CONFIG.chatId}. Click para configurar`;
+        } else {
+          lblTgDest.textContent = `SIN CONFIGURAR`;
+          lblTgDest.title = `Click para configurar Telegram Bot Token y Chat ID`;
+        }
+      }
+      const badgeBot = document.getElementById('badgeBotStatus') || document.querySelector('.session-badge.overlap');
+      if (badgeBot) {
+        badgeBot.textContent = isConnected ? 'BOT ACTIVO' : 'SIN CONFIG';
+        badgeBot.style.background = isConnected ? 'rgba(0, 240, 144, 0.15)' : 'rgba(245, 158, 11, 0.15)';
+        badgeBot.style.borderColor = isConnected ? 'rgba(0, 240, 144, 0.4)' : 'rgba(245, 158, 11, 0.4)';
+        badgeBot.style.color = isConnected ? 'var(--green-bull)' : 'var(--gold-accent)';
+      }
+    }
+
+    async function initTelegramCredentials() {
+      if (!TELEGRAM_CONFIG.botToken || !TELEGRAM_CONFIG.chatId) {
+        try {
+          const resp = await fetch('.env');
+          if (resp.ok) {
+            const txt = await resp.text();
+            const tokenMatch = txt.match(/TELEGRAM_BOT_TOKEN\s*=\s*([^\r\n]+)/);
+            const chatMatch = txt.match(/TELEGRAM_CHAT_ID\s*=\s*([^\r\n]+)/);
+            if (tokenMatch && tokenMatch[1]) {
+              TELEGRAM_CONFIG.botToken = tokenMatch[1].trim().replace(/['"]/g, '');
+              localStorage.setItem('TELEGRAM_BOT_TOKEN', TELEGRAM_CONFIG.botToken);
+            }
+            if (chatMatch && chatMatch[1]) {
+              TELEGRAM_CONFIG.chatId = chatMatch[1].trim().replace(/['"]/g, '');
+              localStorage.setItem('TELEGRAM_CHAT_ID', TELEGRAM_CONFIG.chatId);
+            }
+          }
+        } catch (e) {}
+      }
+      updateTelegramStatusUI();
     }
 
     function logTelegramAudit(type, text) {
@@ -3902,7 +4107,7 @@
       const originTag = isAutonomous ? '🤖 [PAPER TRADING AUTÓNOMO]' : '👤 [MANUAL]';
       showToast(`${originTag} Posición ${direction} (${actualSize.toFixed(2)} BTC) ABIERTA en $${entryPrice.toLocaleString()} (SL: $${Math.round(sl).toLocaleString()} [ -${finalSlPts} pts] | TP1: $${Math.round(tp1).toLocaleString()} [+${finalTp1Pts} pts] | TP2: $${Math.round(tp2).toLocaleString()} [+${finalTp2Pts} pts])`, 'success');
 
-      sendTelegramAlert('ENTRY', {
+      sendTelegramAlert(isAutonomous ? 'POSITION_OPENED' : 'ENTRY', {
         direction,
         entryPrice,
         sl,
@@ -3911,9 +4116,10 @@
         tp1Pts: finalTp1Pts,
         tp2,
         tp2Pts: finalTp2Pts,
+        actualSize,
         score: STATE.liveIndicators.score || 80,
         session: STATE.liveIndicators.session || 'INSTITUCIONAL',
-        reasons: [reason]
+        reason
       });
 
       updateLivePositionUI(entryPrice, 0, 0);
@@ -5066,6 +5272,39 @@
       bePill.style.display = 'none';
       earlyExitPill.style.display = 'none';
       targetStatus.textContent = 'Esperando Entrada';
+      updatePendingRetestUI();
+    }
+
+    function updatePendingRetestUI(currentPrice = null) {
+      const pill = document.getElementById('posPendingRetestPill');
+      const textEl = document.getElementById('posPendingRetestText');
+      const detailsEl = document.getElementById('posPendingRetestDetails');
+      if (!pill) return;
+
+      if (!STATE.pendingSetup || STATE.openPosition) {
+        pill.style.display = 'none';
+        return;
+      }
+
+      const ps = STATE.pendingSetup;
+      const opt = ps.optimalEntry || {};
+      const elapsedMin = Math.round((Date.now() - ps.createdAt) / 60000);
+      const remainingMin = Math.max(0, (QUANT_CONFIG.signalValidityMinutes || 120) - elapsedMin);
+      const isL = ps.direction === 'LONG';
+      const cPrice = currentPrice || STATE.currentPrice || ps.signalPrice;
+      const dist = isL ? (cPrice - (opt.zoneMax || cPrice)) : ((opt.zoneMin || cPrice) - cPrice);
+
+      pill.style.display = 'block';
+      pill.style.background = isL ? 'rgba(0, 240, 144, 0.12)' : 'rgba(255, 51, 102, 0.12)';
+      pill.style.borderColor = isL ? 'rgba(0, 240, 144, 0.4)' : 'rgba(255, 51, 102, 0.4)';
+      pill.style.color = isL ? 'var(--green-bull)' : 'var(--red-bear)';
+
+      if (textEl) {
+        textEl.innerHTML = `⏳ AL ACECHO DE RETEST [${ps.direction}]: Esperando ${isL ? 'soporte' : 'resistencia'} $${Math.round(opt.zoneMin || 0).toLocaleString()} - $${Math.round(opt.zoneMax || 0).toLocaleString()}`;
+      }
+      if (detailsEl) {
+        detailsEl.innerHTML = `Distancia a zona: ${Math.round(dist) > 0 ? '+' : ''}${Math.round(dist)} pts • Validez: ${remainingMin} min restantes (TTL 2h)`;
+      }
     }
 
     function updateRadarUI(res) {
@@ -5276,34 +5515,129 @@
 
     function checkAutonomousPaperTradingExecution(res, currentPrice) {
       if (!STATE.isAutonomousTradingEnabled) return;
-      if (STATE.openPosition) return;
+      if (STATE.openPosition) {
+        updatePendingRetestUI();
+        return;
+      }
+
+      // 1. GESTIONAR ORDEN PENDIENTE DE RETEST SI YA EXISTE
+      if (STATE.pendingSetup) {
+        const ps = STATE.pendingSetup;
+        const elapsedMin = (Date.now() - ps.createdAt) / 60000;
+        const maxWaitMin = QUANT_CONFIG.signalValidityMinutes || 120;
+
+        // A. Expiración de Tiempo (2 horas sin retest)
+        if (elapsedMin > maxWaitMin) {
+          showToast(`⌛ Señal ${ps.direction} cancelada: Expiró tras 2 horas sin alcanzar zona de retest.`, 'info', 4000);
+          STATE.pendingSetup = null;
+          updatePendingRetestUI();
+          return;
+        }
+
+        // B. Invalidación de Estructura (Precio rompe Stop-Loss antes de retest)
+        const isL = ps.direction === 'LONG';
+        if ((isL && currentPrice <= ps.sl) || (!isL && currentPrice >= ps.sl)) {
+          showToast(`🛑 Señal ${ps.direction} invalidada: El precio rompió el nivel de Stop ($${Math.round(ps.sl).toLocaleString()}) antes de retestear.`, 'warning', 4000);
+          STATE.pendingSetup = null;
+          updatePendingRetestUI();
+          return;
+        }
+
+        // C. Disparo por Retest Confirmado (Precio entra en zona de valor)
+        const opt = ps.optimalEntry || {};
+        const retestHit = isL ? (currentPrice <= (opt.zoneMax || ps.signalPrice)) : (currentPrice >= (opt.zoneMin || ps.signalPrice));
+        if (retestHit) {
+          const savingPts = Math.round(Math.abs(currentPrice - ps.signalPrice));
+          const autoReason = ps.isTierAPlus 
+            ? `🤖 Paper Trader Autónomo [Retest A+ 💎 • Ahorro +${savingPts} pts]`
+            : `🤖 Paper Trader Autónomo [Retest Confirmado • Ahorro +${savingPts} pts]`;
+
+          openPosition(ps.direction, currentPrice, ps.autoSize, ps.sl, ps.tp1, ps.tp2, autoReason, true);
+          showToast(`🎯 ¡RETEST CONFIRMADO! Posición ${ps.direction} ejecutada en zona óptima a $${currentPrice.toLocaleString()} (Ahorro ~${savingPts} pts)`, 'success', 6000);
+          sound.playEntry();
+          STATE.pendingSetup = null;
+          updatePendingRetestUI();
+          return;
+        }
+
+        // Si aún no ha tocado la zona, actualizar el monitor y esperar
+        updatePendingRetestUI(currentPrice);
+        return;
+      }
+
+      // 2. EVALUAR NUEVA SEÑAL CUANDO NO HAY POSICIÓN NI ORDEN PENDIENTE
       if (!res || res.score < QUANT_CONFIG.minScoreThreshold) return;
       if (res.direction !== 'LONG' && res.direction !== 'SHORT') return;
 
       const lastCandle = (STATE.klines && STATE.klines.length > 0) ? STATE.klines[STATE.klines.length - 1] : null;
       if (!lastCandle) return;
 
-      // Rate safety: max 1 autonomous entry per candle
+      // Rate safety: max 1 autonomous setup per candle
       if (STATE.lastAutonomousTradeCandle === lastCandle.t) {
         return;
       }
 
+      // Macro Filter Guard: Si el gráfico está en temporalidades menores (5m / 15m), respetar la tendencia maestra de 4H
+      if (['5m', '15m'].includes(QUANT_CONFIG.timeframe)) {
+        const m4h = STATE.mtfData && STATE.mtfData['4h'];
+        if (m4h && m4h.direction && m4h.direction !== res.direction && m4h.direction !== 'NEUTRAL') {
+          console.log(`[MTF GUARD] Entrada ${res.direction} en ${QUANT_CONFIG.timeframe} bloqueada: La temporalidad maestra 4H marca ${m4h.direction}.`);
+          return;
+        }
+      }
+
       STATE.lastAutonomousTradeCandle = lastCandle.t;
 
+      const opt = res.optimalEntry || {};
+      const timingStatus = opt.timingStatus || 'FAVORABLE';
       const autoSize = res.recommendedSizeBTC || (res.isTierAPlus ? 0.50 : 0.25);
+
+      // Si el precio está sobreextendido tras el impulso (WAIT_PULLBACK), NO VENDER NI COMPRAR A MERCADO
+      // Armar la señal y esperar el retest
+      if (timingStatus === 'WAIT_PULLBACK') {
+        STATE.pendingSetup = {
+          direction: res.direction,
+          score: res.score,
+          tier: res.tier,
+          isTierAPlus: res.isTierAPlus,
+          signalPrice: currentPrice,
+          autoSize: autoSize,
+          sl: res.sl,
+          tp1: res.tp1,
+          tp2: res.tp2,
+          optimalEntry: opt,
+          createdAt: Date.now(),
+          candleTime: lastCandle.t
+        };
+        const actionWord = res.direction === 'LONG' ? 'retroceso a soporte' : 'rebote a resistencia';
+        showToast(`⏳ Señal ${res.direction} detectada (${res.score}%): PRECIO SOBREEXTENDIDO. Al acecho de ${actionWord} en $${Math.round(opt.zoneMin || currentPrice).toLocaleString()} - $${Math.round(opt.zoneMax || currentPrice).toLocaleString()} (Válida por 2h)`, 'info', 6000);
+        updatePendingRetestUI(currentPrice);
+        return;
+      }
+
+      // Si ya está en zona de valor (ENTER_NOW o PULLBACK_FAVORABLE), ejecutar de inmediato
       const autoReason = res.isTierAPlus 
         ? '🤖 Paper Trader Autónomo [Señal A+ 💎 $40,000 USD]' 
         : `🤖 Paper Trader Autónomo [Confluencia ${res.score}%]`;
 
       openPosition(res.direction, currentPrice, autoSize, res.sl, res.tp1, res.tp2, autoReason, true);
+      updatePendingRetestUI();
     }
 
-    function checkAndDispatchSignalAlert(evalRes, currentPrice) {
+    async function checkAndDispatchSignalAlert(evalRes, currentPrice) {
       const chkAuto = document.getElementById('chkAutoTelegramAlerts');
       const isAutoEnabled = chkAuto ? chkAuto.checked : QUANT_CONFIG.autoTelegramAlerts;
       if (!isAutoEnabled) return;
       if (evalRes.score < QUANT_CONFIG.minScoreThreshold) return;
       if (evalRes.direction !== 'LONG' && evalRes.direction !== 'SHORT') return;
+
+      // Macro Filter Guard: Evitar alertas de Telegram en temporalidades menores si van contra la tendencia de 4H
+      if (['5m', '15m'].includes(QUANT_CONFIG.timeframe)) {
+        const m4h = STATE.mtfData && STATE.mtfData['4h'];
+        if (m4h && m4h.direction && m4h.direction !== evalRes.direction && m4h.direction !== 'NEUTRAL') {
+          return;
+        }
+      }
 
       const lastCandle = STATE.klines[STATE.klines.length - 1];
       if (!lastCandle) return;
@@ -5321,14 +5655,8 @@
         return;
       }
 
-      STATE.lastDispatchedAlertKey = alertKey;
-      STATE.lastDispatchedAlertTime = now;
-
-      // Audio feedback
-      sound.playEntry();
-
       // Dispatch alert directly to Telegram
-      sendTelegramAlert('ENTRY', {
+      const alertResult = await sendTelegramAlert('ENTRY', {
         direction: evalRes.direction,
         entryPrice: currentPrice,
         optimalEntry: evalRes.optimalEntry,
@@ -5346,10 +5674,15 @@
         reasons: evalRes.reasons
       });
 
-      const toastMsg = evalRes.isTierAPlus
-        ? `🔔 💎 ¡SEÑAL A+ ENVIADA A TELEGRAM! Doble Tamaño $40,000 USD (${evalRes.direction} ${evalRes.score}%)`
-        : `🔔 ALERTA AUTOMÁTICA ENVIADA A TELEGRAM: Señal Clara [${evalRes.direction}] (${evalRes.score}%)`;
-      showToast(toastMsg, 'success', 6000);
+      if (alertResult && alertResult.ok) {
+        STATE.lastDispatchedAlertKey = alertKey;
+        STATE.lastDispatchedAlertTime = now;
+        sound.playEntry();
+        const toastMsg = evalRes.isTierAPlus
+          ? `🔔 💎 ¡SEÑAL A+ ENVIADA A TELEGRAM! Doble Tamaño $40,000 USD (${evalRes.direction} ${evalRes.score}%)`
+          : `🔔 ALERTA AUTOMÁTICA ENVIADA A TELEGRAM: Señal Clara [${evalRes.direction}] (${evalRes.score}%)`;
+        showToast(toastMsg, 'success', 6000);
+      }
     }
 
     function updateOrderFlowAndLiquidationsUI(currentPrice, klines) {
@@ -5623,14 +5956,14 @@
           hintText = res.curPrice > res.ema200 ? 'Macro Bull > EMA200' : 'Macro Bear < EMA200';
         } else if (tf === '4h') {
           if (res.ichi) {
-            hintText = res.curPrice > res.ichi.kumoTop ? 'Sobre Kumo ☁️' : (res.curPrice < res.ichi.kumoBottom ? 'Bajo Kumo 🌧️' : 'Dentro Kumo 🌫️');
+            hintText = (res.curPrice > res.ichi.kumoTop ? 'Sobre Kumo ☁️' : (res.curPrice < res.ichi.kumoBottom ? 'Bajo Kumo 🌧️' : 'En Kumo 🌫️')) + ' • Bot 24/7';
           } else {
-            hintText = res.curPrice > res.ema200 ? 'Sobre EMA 200' : 'Bajo EMA 200';
+            hintText = (res.curPrice > res.ema200 ? 'Sobre EMA 200' : 'Bajo EMA 200') + ' • Bot 24/7';
           }
         } else if (tf === '1h') {
           hintText = res.curPrice > res.vwap ? 'Sobre VWAP Intradía' : 'Bajo VWAP Intradía';
         } else if (tf === '15m') {
-          hintText = (res.ttm && res.ttm.isSqueeze) ? '⚡ Compresión Squeeze' : '⚡ Temporalidad Bot';
+          hintText = (res.ttm && res.ttm.isSqueeze) ? '⚡ Compresión Squeeze' : '⚡ Gatillo Retest';
         } else if (tf === '5m') {
           hintText = (res.chop > 61.8) ? 'Chop Alto (Lateral)' : 'Scalp Momentum';
         }
@@ -5666,50 +5999,95 @@
         }
       });
 
-      // Evaluate Fractal Consensus
+      // Evaluate Fractal Consensus & Predictive Directives
       const consensusBox = document.getElementById('mtfConsensusBox');
       const consensusIcon = document.getElementById('mtfConsensusIcon');
       const consensusText = document.getElementById('mtfConsensusText');
+      const consensusAdvice = document.getElementById('mtfConsensusAdvice');
       if (!consensusBox || !consensusText) return;
 
       const res4h = mtfResults['4h'];
       const res1d = mtfResults['1d'];
+      const res1h = mtfResults['1h'];
       const res15m = mtfResults['15m'];
-      const isMacroBear = (res4h && (res4h.direction === 'SHORT' || res4h.direction === 'BIAS_SHORT' || (res4h.ichi && res4h.curPrice < res4h.ichi.kumoBottom))) ||
-                          (res1d && (res1d.direction === 'SHORT' || res1d.curPrice < res1d.ema200));
-      const isMacroBull = (res4h && (res4h.direction === 'LONG' || res4h.direction === 'BIAS_LONG')) &&
-                          (!res1d || res1d.curPrice > res1d.ema200);
+      const res5m = mtfResults['5m'];
+
+      const is4hBull = res4h && (res4h.direction === 'LONG' || res4h.direction === 'BIAS_LONG');
+      const is4hBear = res4h && (res4h.direction === 'SHORT' || res4h.direction === 'BIAS_SHORT');
+      const is4hChop = res4h && (res4h.direction === 'HIBERNATION' || res4h.chop > 61.8);
+
+      const is1hBull = res1h && (res1h.direction === 'LONG' || res1h.direction === 'BIAS_LONG');
+      const is1hBear = res1h && (res1h.direction === 'SHORT' || res1h.direction === 'BIAS_SHORT');
+
       const is15mBull = res15m && (res15m.direction === 'LONG' || res15m.direction === 'BIAS_LONG');
       const is15mBear = res15m && (res15m.direction === 'SHORT' || res15m.direction === 'BIAS_SHORT');
+      const is15mSq = res15m && res15m.ttm && res15m.ttm.isSqueeze;
 
-      if (bullCount >= 3 && !isMacroBear) {
+      const isMacroBear = is4hBear || (res4h && res4h.ichi && res4h.curPrice < res4h.ichi.kumoBottom) || (res1d && res1d.curPrice < res1d.ema200);
+      const isMacroBull = is4hBull && (!res1d || res1d.curPrice > res1d.ema200);
+
+      // 1. Hibernación / Choppiness Severo en 4H
+      if (is4hChop) {
+        consensusBox.className = 'mtf-consensus-box mixed';
+        if (consensusIcon) consensusIcon.innerText = '💤';
+        consensusText.innerHTML = `MODO HIBERNACIÓN 4H: VOLATILIDAD ATRAPADA`;
+        if (consensusAdvice) consensusAdvice.innerHTML = `💡 <b>Acción:</b> Choppiness > 61.8. Prohibido operar swing; esperar expansión direccional.`;
+      }
+      // 2. Confluencia Total Alcista (4H + 1H + 15M Bull)
+      else if (is4hBull && is1hBull && is15mBull) {
         consensusBox.className = 'mtf-consensus-box bull';
         if (consensusIcon) consensusIcon.innerText = '🚀';
-        consensusText.innerHTML = `ALINEACIÓN ALCISTA (${bullCount}/5) — ALTA CONVICCIÓN LONG`;
-      } else if (bearCount >= 3 && !isMacroBull) {
+        consensusText.innerHTML = `CONFLUENCIA TOTAL ALCISTA (${bullCount}/5 TFs) — ALTA CONVICCIÓN LONG`;
+        if (consensusAdvice) consensusAdvice.innerHTML = `💡 <b>Acción:</b> Luz verde compras. Disparo válido para buscar expansión de +1.200 a +1.500 pts.`;
+      }
+      // 3. Confluencia Total Bajista (4H + 1H + 15M Bear)
+      else if (is4hBear && is1hBear && is15mBear) {
         consensusBox.className = 'mtf-consensus-box bear';
         if (consensusIcon) consensusIcon.innerText = '🩸';
-        consensusText.innerHTML = `ALINEACIÓN BAJISTA (${bearCount}/5) — ALTA CONVICCIÓN SHORT`;
-      } else if (isMacroBear && is15mBull) {
+        consensusText.innerHTML = `CONFLUENCIA TOTAL BAJISTA (${bearCount}/5 TFs) — ALTA CONVICCIÓN SHORT`;
+        if (consensusAdvice) consensusAdvice.innerHTML = `💡 <b>Acción:</b> Luz verde ventas. Presión vendedora activa para expansión de +1.200 a +1.500 pts.`;
+      }
+      // 4. Pullback Táctico en Tendencia Alcista (4H Bull + 15M Retroceso)
+      else if (isMacroBull && (is15mBear || (res15m && res15m.direction === 'HIBERNATION'))) {
+        consensusBox.className = 'mtf-consensus-box bull';
+        if (consensusIcon) consensusIcon.innerText = '🎯';
+        consensusText.innerHTML = `PULLBACK EN TENDENCIA BULL (4H): RETROCESO SANO`;
+        if (consensusAdvice) consensusAdvice.innerHTML = `💡 <b>Acción:</b> NO comprar en verdes extendidos; esperar retest en EMA20/VWAP para Long con R:R óptimo.`;
+      }
+      // 5. Retest Táctico en Tendencia Bajista (4H Bear + 15M Rebote)
+      else if (isMacroBear && (is15mBull || (res15m && res15m.direction === 'HIBERNATION'))) {
+        consensusBox.className = 'mtf-consensus-box bear';
+        if (consensusIcon) consensusIcon.innerText = '🎯';
+        consensusText.innerHTML = `RETEST EN TENDENCIA BEAR (4H): REBOTE CONTRATENDENCIA`;
+        if (consensusAdvice) consensusAdvice.innerHTML = `💡 <b>Acción:</b> Rebote débil contra tendencia macro; buscar agotamiento y venta (Short) en resistencia EMA20.`;
+      }
+      // 6. Compresión TTM Squeeze en 15M
+      else if (is15mSq) {
         consensusBox.className = 'mtf-consensus-box mixed';
-        if (consensusIcon) consensusIcon.innerText = '⚠️';
-        consensusText.innerHTML = `CONFLICTO FRACTAL: REBOTE 15M CONTRA TENDENCIA MACRO 4H/1D BAJISTA`;
-      } else if (isMacroBull && is15mBear) {
-        consensusBox.className = 'mtf-consensus-box mixed';
-        if (consensusIcon) consensusIcon.innerText = '⚠️';
-        consensusText.innerHTML = `CONFLICTO FRACTAL: RETROCESO 15M DENTRO DE MACRO 4H/1D ALCISTA`;
-      } else if (bullCount > bearCount) {
+        if (consensusIcon) consensusIcon.innerText = '⚡';
+        consensusText.innerHTML = `COMPRESIÓN TTM SQUEEZE 15M (DISPARO PRÓXIMO)`;
+        if (consensusAdvice) consensusAdvice.innerHTML = `💡 <b>Acción:</b> Bandas dentro de Keltner. Acumulación inminente; esperar vela de ruptura con volumen.`;
+      }
+      // 7. Mayoría Alcista sin confluencia plena
+      else if (bullCount >= 3 && !isMacroBear) {
         consensusBox.className = 'mtf-consensus-box bull';
         if (consensusIcon) consensusIcon.innerText = '🟢';
-        consensusText.innerHTML = `SESGO LEVEMENTE ALCISTA (${bullCount}/5)`;
-      } else if (bearCount > bullCount) {
+        consensusText.innerHTML = `SESGO ESTRUCTURAL ALCISTA (${bullCount}/5 TFs)`;
+        if (consensusAdvice) consensusAdvice.innerHTML = `💡 <b>Acción:</b> Compras favorecidas; asegurar ganancias parciales en TP1 (+900 pts) por ruido menor.`;
+      }
+      // 8. Mayoría Bajista sin confluencia plena
+      else if (bearCount >= 3 && !isMacroBull) {
         consensusBox.className = 'mtf-consensus-box bear';
         if (consensusIcon) consensusIcon.innerText = '🔴';
-        consensusText.innerHTML = `SESGO LEVEMENTE BAJISTA (${bearCount}/5)`;
-      } else {
+        consensusText.innerHTML = `SESGO ESTRUCTURAL BAJISTA (${bearCount}/5 TFs)`;
+        if (consensusAdvice) consensusAdvice.innerHTML = `💡 <b>Acción:</b> Ventas favorecidas; asegurar ganancias parciales en TP1 (+900 pts) por ruido menor.`;
+      }
+      // 9. Consolidación Mixta
+      else {
         consensusBox.className = 'mtf-consensus-box mixed';
         if (consensusIcon) consensusIcon.innerText = '⚖️';
         consensusText.innerHTML = `MERCADO MIXTO EN CONSOLIDACIÓN — SIN CONFLUENCIA`;
+        if (consensusAdvice) consensusAdvice.innerHTML = `💡 <b>Acción:</b> Sin ventaja estadística clara. Esperar a que el precio rompa y confirme dirección.`;
       }
     }
 
@@ -6726,19 +7104,102 @@
         if (QUANT_CONFIG.audioEnabled) sound.playPing();
       });
 
-      // 2. Telegram Test Message button
+      // 2. Telegram Integration & Test Message
       const btnSendTestTelegram = document.getElementById('btnSendTestTelegram');
       if (btnSendTestTelegram) {
         btnSendTestTelegram.addEventListener('click', async () => {
+          if (!TELEGRAM_CONFIG.botToken || !TELEGRAM_CONFIG.chatId) {
+            openTelegramConfigModal();
+            showToast('⚠️ Introduce tus credenciales de Telegram para conectar el bot.', 'warning', 4000);
+            return;
+          }
           showToast('Enviando mensaje de prueba a Telegram...', 'info');
           await sendTelegramAlert('TEST');
         });
       }
 
-      // Update destination badge if chatId exists in localStorage
+      const btnOpenTgConfig = document.getElementById('btnOpenTgConfig');
+      if (btnOpenTgConfig) {
+        btnOpenTgConfig.addEventListener('click', openTelegramConfigModal);
+      }
+
       const lblTgDest = document.getElementById('lblTelegramDest');
-      if (lblTgDest && TELEGRAM_CONFIG.chatId) {
-        lblTgDest.textContent = `ID: ${TELEGRAM_CONFIG.chatId}`;
+      if (lblTgDest) {
+        lblTgDest.addEventListener('click', openTelegramConfigModal);
+      }
+
+      const badgeBot = document.getElementById('badgeBotStatus');
+      if (badgeBot) {
+        badgeBot.addEventListener('click', openTelegramConfigModal);
+      }
+
+      // Modal Telegram handlers
+      const btnCloseTgModal = document.getElementById('btnCloseTgConfigModal');
+      if (btnCloseTgModal) btnCloseTgModal.addEventListener('click', closeTelegramConfigModal);
+
+      const btnCancelTgModal = document.getElementById('btnCancelTgModal');
+      if (btnCancelTgModal) btnCancelTgModal.addEventListener('click', closeTelegramConfigModal);
+
+      const btnToggleTokenVis = document.getElementById('btnToggleTgTokenVis');
+      if (btnToggleTokenVis) {
+        btnToggleTokenVis.addEventListener('click', () => {
+          const inp = document.getElementById('inputTgBotToken');
+          if (inp) {
+            inp.type = inp.type === 'password' ? 'text' : 'password';
+            btnToggleTokenVis.textContent = inp.type === 'password' ? '👁️' : '🔒';
+          }
+        });
+      }
+
+      const btnSaveTgConfig = document.getElementById('btnSaveTgConfig');
+      if (btnSaveTgConfig) {
+        btnSaveTgConfig.addEventListener('click', () => {
+          const inpToken = document.getElementById('inputTgBotToken');
+          const inpChat = document.getElementById('inputTgChatId');
+          const tVal = inpToken ? inpToken.value.trim() : '';
+          const cVal = inpChat ? inpChat.value.trim() : '';
+
+          if (!tVal || !cVal) {
+            showToast('⚠️ Por favor completa tanto el Bot Token como el Chat ID.', 'warning', 4000);
+            return;
+          }
+
+          TELEGRAM_CONFIG.botToken = tVal;
+          TELEGRAM_CONFIG.chatId = cVal;
+          localStorage.setItem('TELEGRAM_BOT_TOKEN', tVal);
+          localStorage.setItem('btc_quant_telegram_bot_token', tVal);
+          localStorage.setItem('TELEGRAM_CHAT_ID', cVal);
+          localStorage.setItem('btc_quant_telegram_chat_id', cVal);
+
+          updateTelegramStatusUI();
+          updateTelegramModalStatusBadge();
+          showToast('✅ Credenciales de Telegram guardadas correctamente.', 'success', 4000);
+          closeTelegramConfigModal();
+        });
+      }
+
+      const btnTgModalTest = document.getElementById('btnTgModalTest');
+      if (btnTgModalTest) {
+        btnTgModalTest.addEventListener('click', async () => {
+          const inpToken = document.getElementById('inputTgBotToken');
+          const inpChat = document.getElementById('inputTgChatId');
+          const tVal = inpToken ? inpToken.value.trim() : '';
+          const cVal = inpChat ? inpChat.value.trim() : '';
+
+          if (tVal) {
+            TELEGRAM_CONFIG.botToken = tVal;
+            localStorage.setItem('TELEGRAM_BOT_TOKEN', tVal);
+          }
+          if (cVal) {
+            TELEGRAM_CONFIG.chatId = cVal;
+            localStorage.setItem('TELEGRAM_CHAT_ID', cVal);
+          }
+          updateTelegramStatusUI();
+          updateTelegramModalStatusBadge();
+
+          showToast('Enviando test a Telegram...', 'info');
+          await sendTelegramAlert('TEST');
+        });
       }
 
       // 3. Refresh Data button
@@ -7082,6 +7543,7 @@
     // 19. TERMINAL INITIALIZATION ENTRY POINT
     window.addEventListener('DOMContentLoaded', () => {
       console.log('Inicializando BTC Quant Terminal V6.5 - Pro Edition...');
+      initTelegramCredentials();
       loadJournal();
       attachEventListeners();
       toggleAutonomousTrading(STATE.isAutonomousTradingEnabled);
