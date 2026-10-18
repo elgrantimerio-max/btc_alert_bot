@@ -1265,7 +1265,7 @@
 
     <!-- ACTIONS -->
     <div class="header-actions">
-      <button class="btn btn-telegram-test" id="btnTestTelegram" title="Enviar ping de prueba a Telegram">
+      <button class="btn btn-telegram-test" id="btnTestTelegram" title="Enviar ping de prueba a Telegram (Shift+Clic para configurar Token/Chat ID privado en este navegador)">
         <span>📲</span> Probar Conexión con @MrProezas
       </button>
       <button class="btn btn-outline btn-sm" id="btnToggleAudio" title="Sonido de Alertas">
@@ -1986,11 +1986,13 @@
        Full-Stack Production Architecture
        ========================================================================== */
 
-    // 1. CONFIGURATION & HARDCODED CREDENTIALS
+    // 1. CONFIGURATION & TELEGRAM CREDENTIALS (Protección Privada LocalStorage)
     const TELEGRAM_CONFIG = {
-      botToken: '8635759809:AAF8YTMVkbVizhe2V7ciw_QtOktDqapJWo4',
-      chatId: '159239770',
-      endpoint: 'https://api.telegram.org/bot8635759809:AAF8YTMVkbVizhe2V7ciw_QtOktDqapJWo4/sendMessage'
+      botToken: localStorage.getItem('btc_quant_telegram_bot_token') || '',
+      chatId: localStorage.getItem('btc_quant_telegram_chat_id') || '159239770',
+      get endpoint() {
+        return this.botToken ? `https://api.telegram.org/bot${this.botToken}/sendMessage` : '';
+      }
     };
 
     const QUANT_CONFIG = {
@@ -2253,6 +2255,29 @@
       }
 
       logTelegramAudit(type, text);
+
+      if (!TELEGRAM_CONFIG.botToken) {
+        if (type === 'TEST') {
+          const inputToken = prompt('🔑 [CONFIGURACIÓN TELEGRAM PRIVADA]\nIntroduce tu Telegram Bot Token para habilitar alertas web:\n(Se guardará únicamente en tu navegador LocalStorage y NUNCA se sube a GitHub):');
+          if (inputToken && inputToken.trim()) {
+            TELEGRAM_CONFIG.botToken = inputToken.trim();
+            localStorage.setItem('btc_quant_telegram_bot_token', inputToken.trim());
+          } else {
+            showToast('Alerta cancelada: Falta configurar el Bot Token.', 'warning');
+            return;
+          }
+          if (!TELEGRAM_CONFIG.chatId) {
+            const inputChat = prompt('👤 Introduce tu Telegram Chat ID:', '159239770');
+            if (inputChat && inputChat.trim()) {
+              TELEGRAM_CONFIG.chatId = inputChat.trim();
+              localStorage.setItem('btc_quant_telegram_chat_id', inputChat.trim());
+            }
+          }
+        } else {
+          console.warn('[TELEGRAM] Alerta web omitida: Token no configurado en LocalStorage.');
+          return;
+        }
+      }
 
       try {
         const response = await fetch(TELEGRAM_CONFIG.endpoint, {
@@ -5933,10 +5958,28 @@
 
     // 18. ATTACH ALL DOM EVENT LISTENERS
     function attachEventListeners() {
-      // 1. Telegram test button (Hardcoded for @MrProezas)
-      document.getElementById('btnTestTelegram').addEventListener('click', () => {
-        sendTelegramAlert('TEST', {});
-      });
+      // 1. Telegram test button (con soporte de configuración segura)
+      const btnTestTg = document.getElementById('btnTestTelegram');
+      if (btnTestTg) {
+        btnTestTg.addEventListener('click', (e) => {
+          if (e.shiftKey || e.altKey) {
+            const currentToken = TELEGRAM_CONFIG.botToken || '';
+            const inputToken = prompt('🔑 [CONFIGURACIÓN TELEGRAM PRIVADA]\nIntroduce tu nuevo Telegram Bot Token:\n(Se guardará únicamente en tu navegador LocalStorage):', currentToken);
+            if (inputToken !== null && inputToken.trim()) {
+              TELEGRAM_CONFIG.botToken = inputToken.trim();
+              localStorage.setItem('btc_quant_telegram_bot_token', inputToken.trim());
+            }
+            const currentChat = TELEGRAM_CONFIG.chatId || '159239770';
+            const inputChat = prompt('👤 Introduce tu Telegram Chat ID:', currentChat);
+            if (inputChat !== null && inputChat.trim()) {
+              TELEGRAM_CONFIG.chatId = inputChat.trim();
+              localStorage.setItem('btc_quant_telegram_chat_id', inputChat.trim());
+            }
+            showToast('Credenciales actualizadas en tu navegador.', 'info');
+          }
+          sendTelegramAlert('TEST', {});
+        });
+      }
 
       // 2. Audio toggle
       document.getElementById('btnToggleAudio').addEventListener('click', () => {

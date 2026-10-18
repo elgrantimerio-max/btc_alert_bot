@@ -9,9 +9,31 @@ const fs = require('fs');
 const path = require('path');
 
 const TELEGRAM_CONFIG = {
-  token: process.env.TELEGRAM_BOT_TOKEN || '8635759809:AAF8YTMVkbVizhe2V7ciw_QtOktDqapJWo4',
-  chatId: process.env.TELEGRAM_CHAT_ID || '159239770'
+  token: (process.env.TELEGRAM_BOT_TOKEN || '').trim(),
+  chatId: (process.env.TELEGRAM_CHAT_ID || '').trim()
 };
+
+// Soporte para archivo local .env (desarrollo local seguro sin comprometer claves)
+if (!TELEGRAM_CONFIG.token || !TELEGRAM_CONFIG.chatId) {
+  const envPath = path.join(__dirname, '.env');
+  if (fs.existsSync(envPath)) {
+    try {
+      const content = fs.readFileSync(envPath, 'utf8');
+      content.split('\n').forEach(line => {
+        const trimmed = line.trim();
+        if (trimmed && !trimmed.startsWith('#') && trimmed.includes('=')) {
+          const parts = trimmed.split('=');
+          const k = parts[0].trim();
+          const v = parts.slice(1).join('=').trim().replace(/^["']|["']$/g, '');
+          if (k === 'TELEGRAM_BOT_TOKEN' && !TELEGRAM_CONFIG.token) TELEGRAM_CONFIG.token = v;
+          if (k === 'TELEGRAM_CHAT_ID' && !TELEGRAM_CONFIG.chatId) TELEGRAM_CONFIG.chatId = v;
+        }
+      });
+    } catch (e) {
+      console.warn('[ENV WARN] Error leyendo .env local:', e.message);
+    }
+  }
+}
 
 const QUANT_CONFIG = {
   symbol: 'BTCUSDT',
@@ -46,6 +68,12 @@ function httpGet(url) {
 
 function sendTelegram(text) {
   return new Promise((resolve) => {
+    if (!TELEGRAM_CONFIG.token || !TELEGRAM_CONFIG.chatId) {
+      console.error('[TELEGRAM CONFIG ERROR] Alerta NO enviada: Falta TELEGRAM_BOT_TOKEN o TELEGRAM_CHAT_ID.');
+      console.error('[GITHUB SECRETS] Configura TELEGRAM_BOT_TOKEN y TELEGRAM_CHAT_ID en Settings > Secrets and variables > Actions.');
+      return resolve(false);
+    }
+
     const postData = JSON.stringify({
       chat_id: TELEGRAM_CONFIG.chatId,
       text: text,

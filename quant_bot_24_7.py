@@ -15,10 +15,30 @@ import urllib.error
 from datetime import datetime, timezone
 
 # 1. CONFIGURATION & CREDENTIALS
-# Priority: Environment Variables (GitHub Secrets) -> Fallback to preconfigured credentials
-TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '8635759809:AAF8YTMVkbVizhe2V7ciw_QtOktDqapJWo4').strip()
-TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID', '159239770').strip()
-TELEGRAM_API_URL = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+# Priority: Environment Variables (GitHub Secrets) -> Local .env file
+TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '').strip()
+TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID', '').strip()
+
+# Soporte para archivo local .env (para desarrollo local sin exponer claves en Git)
+if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+    env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env')
+    if os.path.exists(env_path):
+        try:
+            with open(env_path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#') and '=' in line:
+                        k, v = line.split('=', 1)
+                        k = k.strip()
+                        v = v.strip().strip('"').strip("'")
+                        if k == 'TELEGRAM_BOT_TOKEN' and not TELEGRAM_BOT_TOKEN:
+                            TELEGRAM_BOT_TOKEN = v
+                        elif k == 'TELEGRAM_CHAT_ID' and not TELEGRAM_CHAT_ID:
+                            TELEGRAM_CHAT_ID = v
+        except Exception as e:
+            print(f"[ENV WARN] Error leyendo archivo .env local: {e}")
+
+TELEGRAM_API_URL = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage" if TELEGRAM_BOT_TOKEN else ""
 
 QUANT_CONFIG = {
     'symbol': 'BTCUSDT',
@@ -54,6 +74,15 @@ LAST_ALERT_FILE = 'last_alert.json'
 
 # 2. TELEGRAM DISPATCHER
 def send_telegram_alert(text):
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        print("[TELEGRAM CONFIG ERROR] Alerta NO enviada: Falta TELEGRAM_BOT_TOKEN o TELEGRAM_CHAT_ID.")
+        print("[CONFIGURACIÓN GITHUB SECRETS]")
+        print("  1. Entra a tu repositorio: https://github.com/elgrantimerio-max/btctradingbot")
+        print("  2. Ve a Settings -> Secrets and variables -> Actions -> New repository secret")
+        print("  3. Añade 'TELEGRAM_BOT_TOKEN' con el token proporcionado por @BotFather")
+        print("  4. Añade 'TELEGRAM_CHAT_ID' con tu Chat ID numérico")
+        return False
+
     print(f"[TELEGRAM] Enviando alerta a {TELEGRAM_CHAT_ID}...")
     payload = {
         'chat_id': TELEGRAM_CHAT_ID,
@@ -939,6 +968,13 @@ def monitor_cloud_position(cur_price, klines):
 # 7. MAIN RUNNER
 def main():
     print(f"[{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}] Iniciando escaneo cuántico 24/7 de BTC...")
+    if TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID:
+        masked_tok = TELEGRAM_BOT_TOKEN[:6] + "..." + TELEGRAM_BOT_TOKEN[-4:] if len(TELEGRAM_BOT_TOKEN) > 10 else "***"
+        print(f"[SECURITY] Credenciales Telegram activas vía Secretos de GitHub (Bot: {masked_tok}, Chat ID: {TELEGRAM_CHAT_ID})")
+    else:
+        print("[SECURITY WARN] TELEGRAM_BOT_TOKEN o TELEGRAM_CHAT_ID no detectados en variables de entorno.")
+        print("[INFO] Configura 'TELEGRAM_BOT_TOKEN' y 'TELEGRAM_CHAT_ID' en GitHub Secrets (Settings > Secrets and variables > Actions).")
+
     klines = fetch_binance_klines()
     if not klines:
         print("[ERROR] Imposible continuar sin datos.")
