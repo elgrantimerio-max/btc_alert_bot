@@ -10,7 +10,7 @@
 
 ## 🎯 Objetivo del Sistema
 
-Capturar expansiones intradía de **1.200 a 1.500 puntos (USD)** en Bitcoin (BTC/USDT) en operaciones en **Largo (LONG)** o **Corto (SHORT)** con **Win Rate superior al 65%-70%** y una frecuencia operativa óptima (8 a 15 operaciones por cada 500 velas de 15m), avisando en tiempo real por **Telegram directamente a @MrProezas (Chat ID: 159239770)** tanto del momento exacto de **ENTRADA** como de **SALIDA**, funcionando de forma **100% autónoma en la nube las 24 horas del día, los 7 días de la semana**.
+Capturar expansiones intradía de **1.200 a 1.500 puntos (USD)** en Bitcoin (BTC/USDT) en operaciones en **Largo (LONG)** o **Corto (SHORT)** con **Win Rate superior al 65%-70%** y una frecuencia operativa óptima (8 a 15 operaciones por cada 500 velas de 15m), avisando en tiempo real por **Telegram directamente Telegram)** tanto del momento exacto de **ENTRADA** como de **SALIDA**, funcionando de forma **100% autónoma en la nube las 24 horas del día, los 7 días de la semana**.
 
 ---
 
@@ -62,91 +62,6 @@ flowchart LR
    - **Mapa de Liquidaciones y Barridos (SFP Calibrado a 8 pts):** Ponderación calibrada para evitar compras a la contra en caídas fuertes macro.
 4. **Despacho Inmediato:** Si la confluencia alcanza $\ge 68\%$ y no hay bloqueos de Kumo o Squeeze, emite de forma instantánea la alerta detallada a Telegram con Entrada, Stop-Loss adaptativo y objetivos TP1 y TP2.
 5. **Caché Anti-Duplicados y Estado:** Guarda `last_alert.json` y `state.json` con el histórico de Open Interest para calcular el delta continuo.
-
----
-
-## 🚀 Pasos para Subir y Activar en GitHub
-
-### Opción A: Desde la Consola (Git CLI)
-
-Si tienes `git` instalado en tu sistema, ejecuta estos comandos en la carpeta del proyecto:
-
-```bash
-# 1. Inicializar repositorio git local
-git init
-
-# 2. Agregar todos los archivos
-git add .
-
-# 3. Crear el primer commit
-git commit -m "feat: desplegar BTC Quant Terminal V6.5 con automatismo 24/7 y confluencia 100 pts"
-
-# 4. Establecer la rama principal
-git branch -M main
-
-# 5. Vincular con tu repositorio remoto
-git remote add origin https://github.com/elgrantimerio-max/btctradingbot.git
-
-# 6. Subir los archivos a GitHub
-git push -u origin main
-```
-
----
-
-### Opción B: Mediante GitHub Desktop o Web (Arrastrar y Soltar)
-
-1. Entra a tu repositorio: [**https://github.com/elgrantimerio-max/btctradingbot**](https://github.com/elgrantimerio-max/btctradingbot)
-2. Si el repositorio está vacío, pulsa en **"uploading an existing file"** (o en **Add file > Upload files**).
-3. Arrastra todos los archivos de esta carpeta (incluida la carpeta `.github/` con el workflow).
-4. Pulsa en **"Commit changes"**.
-
----
-
-## 🌐 Cómo Activar la Web Online (GitHub Pages Gratuito)
-
-Para tener el terminal interactivo accesible desde cualquier móvil o navegador las 24 horas:
-
-1. En tu repositorio GitHub, ve a **Settings** (pestaña superior derecha).
-2. En el menú lateral izquierdo, haz clic en **Pages**.
-3. En **Build and deployment > Source**, selecciona:
-   - **Branch:** `main`
-   - **Folder:** `/ (root)`
-4. Haz clic en **Save**.
-5. En unos segundos, tu terminal estará disponible públicamente en:
-   👉 **`https://elgrantimerio-max.github.io/btctradingbot/`**
-
----
-
-## 🔒 Configuración de Seguridad y Secretos en GitHub (Imprescindible)
-
-Para que el robot opere de forma autónoma en la nube (GitHub Actions) y envíe alertas a Telegram sin exponer tus credenciales en el repositorio:
-
-1. Ve a tu repositorio en GitHub: [**https://github.com/elgrantimerio-max/btctradingbot**](https://github.com/elgrantimerio-max/btctradingbot)
-2. Entra en **Settings** (pestaña superior derecha del repositorio).
-3. En el menú lateral izquierdo, selecciona **Secrets and variables > Actions**.
-4. Pulsa en el botón verde **New repository secret** y crea estos 2 secretos:
-   - **Nombre:** `TELEGRAM_BOT_TOKEN`
-     - **Secret:** El token de tu bot obtenido con [@BotFather](https://t.me/BotFather) (ej. `123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ...`)
-   - **Nombre:** `TELEGRAM_CHAT_ID`
-     - **Secret:** Tu ID numérico de Telegram (ej. `159239770`)
-5. ¡Listo! El runner de GitHub Actions inyectará estos secretos automáticamente en cada escaneo 24/7 sin que queden registrados en el historial de Git.
-
-### 💻 Para Ejecutar en Local (Opcional)
-Si deseas ejecutar `quant_bot_24_7.py` o `quant_bot_24_7.js` en tu propio ordenador:
-1. Copia `.env.example` como `.env`:
-   ```bash
-   copy .env.example .env
-   ```
-2. Rellena tus claves en `.env` (este archivo está en `.gitignore` para no subirse jamás a GitHub).
-
----
-
-## 📱 Verificación del Workflow
-
-Una vez subido el código:
-1. Ve a la pestaña **Actions** en tu repositorio de GitHub.
-2. Verás el flujo **BTC Quant Guardian 24/7 (Telegram Automatism)**.
-3. Puedes esperar a la siguiente ejecución automática (cada 10 minutos) o pulsar en **Run workflow** para forzar un escaneo manual inmediato.
 
 ---
 
