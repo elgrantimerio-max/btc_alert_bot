@@ -54,7 +54,7 @@ QUANT_CONFIG = {
     'tp2_pts': 1500,
     'tp1_partial_pct': 0.75,
     'tp2_runner_pct': 0.25,
-    'break_even_lock_pts': 400,
+    'break_even_lock_pts': 300, # Locks +300 pts profit on BE move
     'max_hold_candles': 5, # 5 velas de 4H = 20 horas (Horizonte Óptimo)
     'break_even_buffer_atr': 0.25,
     'trailing_trigger_atr': 1.8,
@@ -483,31 +483,44 @@ def evaluate_signal(klines, oi_delta=0.0):
     cur = klines[-1]
     cur_price = cur['c']
 
-    # 1. Session Filter (Max 15 pts)
+    # 1. Session Filter (Max 15 pts) - Riguroso con Fines de Semana y Horarios Institucionales
     dt = datetime.fromtimestamp(cur['t'] / 1000.0, tz=timezone.utc)
+    day_of_week = dt.weekday()  # 0 = Lunes, 5 = Sábado, 6 = Domingo
     utc_hours = dt.hour + dt.minute / 60.0
-    is_weekend = dt.weekday() in (5, 6)
+    is_saturday = (day_of_week == 5)
+    is_sunday = (day_of_week == 6)
 
-    is_london = 8.0 <= utc_hours < 16.5
-    is_ny = 13.5 <= utc_hours < 21.0
-    is_overlap = is_london and is_ny
+    if is_saturday or (is_sunday and utc_hours < 22.0):
+        # Fin de Semana: Wall Street (NYSE), Londres (LSE) y CME están CERRADOS
+        session_name = 'FIN DE SEMANA (BOLSAS CERRADAS)'
+        session_score = 0  # 0/15 pts: Sin combustible ni respaldo institucional tradicional
+    elif is_sunday and utc_hours >= 22.0:
+        # Domingo noche: Apertura semanal de futuros CME y mercados de Asia/Pacífico
+        session_name = 'APERTURA SEMANAL CME / PACÍFICO'
+        session_score = 6
+    else:
+        # Lunes a Viernes: Sesiones Institucionales Abiertas
+        is_london = 8.0 <= utc_hours < 16.5
+        is_ny = 13.0 <= utc_hours < 21.0
+        is_overlap = 13.5 <= utc_hours < 16.5  # 13:30 - 16:30 UTC: Coincidencia máxima
 
-    session_name = 'ASIAN'
-    session_score = 5
-    if is_overlap:
-        session_name = 'OVERLAP (LONDRES + NY)'
-        session_score = 15
-    elif is_london:
-        session_name = 'LONDRES'
-        session_score = 12
-    elif is_ny:
-        session_name = 'NEW YORK'
-        session_score = 12
+        if is_overlap:
+            session_name = 'OVERLAP (LONDRES + NY)'
+            session_score = 15
+        elif is_ny:
+            session_name = 'NEW YORK (WALL STREET)'
+            session_score = 12
+        elif is_london:
+            session_name = 'LONDRES (EUROPA)'
+            session_score = 12
+        elif 0.0 <= utc_hours < 8.0:
+            session_name = 'ASIA (TOKIO / HK)'
+            session_score = 5
+        else:
+            session_name = 'INTERSESIÓN (POST-NY)'
+            session_score = 3
 
-    if is_weekend:
-        session_score = max(0, session_score - 8)
-
-    session_score = min(15, session_score)
+    session_score = min(15, max(0, session_score))
 
     # 2. Anti-Chop & TTM Squeeze Regime Detector (Max 15 pts)
     chop = calculate_choppiness(klines, 14)
@@ -721,6 +734,7 @@ def evaluate_signal(klines, oi_delta=0.0):
 
     if is_long_dominant:
         if session_score >= 10: reasons.append(f"Sesión {session_name}")
+        elif session_score == 0: reasons.append("⚠️ Fin de Semana: Bolsas y CME cerrados (Bajo volumen)")
         if not ttm['is_squeeze']: reasons.append("TTM Squeeze Disparado (Expansión)")
         if anti_chop_score >= 10: reasons.append(f"Régimen Expansivo (Chop {chop:.1f})")
         if long_orb: reasons.append("Ruptura Cajón ORB")
@@ -734,6 +748,7 @@ def evaluate_signal(klines, oi_delta=0.0):
         if ichi_blocked_long: reasons.append("⚠️ FILTRO KUMO: Precio bajo la Nube Bajista")
     else:
         if session_score >= 10: reasons.append(f"Sesión {session_name}")
+        elif session_score == 0: reasons.append("⚠️ Fin de Semana: Bolsas y CME cerrados (Bajo volumen)")
         if not ttm['is_squeeze']: reasons.append("TTM Squeeze Disparado (Expansión)")
         if anti_chop_score >= 10: reasons.append(f"Régimen Expansivo (Chop {chop:.1f})")
         if short_orb: reasons.append("Ruptura Cajón ORB")
@@ -921,7 +936,7 @@ def monitor_cloud_position(cur_price, klines):
     if not pos.get('tp1_hit') and pts >= tp1_target:
         pos['tp1_hit'] = True
         atr = calculate_atr(klines, 14)
-        be_lock = pos.get('break_even_lock_pts', QUANT_CONFIG.get('break_even_lock_pts', 400))
+        be_lock = pos.get('break_even_lock_pts', QUANT_CONFIG.get('break_even_lock_pts', 300))
         pos['sl'] = (pos['entry_price'] + be_lock) if is_long else (pos['entry_price'] - be_lock)
         pos['peak_price'] = cur_price
         btc_qty = pos.get('btc_qty', QUANT_CONFIG['trade_notional_usdt'] / pos['entry_price'])
@@ -929,13 +944,16 @@ def monitor_cloud_position(cur_price, klines):
         realized_tp1_usd = tp1_target * partial_frac * btc_qty
         pos['realized_usd'] = pos.get('realized_usd', 0.0) + realized_tp1_usd
         msg = (
-            f"🎯 <b>TP1 ALCANZADO (+{round(tp1_target)} PTS) [CLOUD GUARDIAN]</b>\n"
+            f"🎯 <b>¡TAKE PROFIT (TP1) ALCANZADO (+{round(tp1_target)} PTS)! [CLOUD GUARDIAN]</b>\n"
             f"━━━━━━━━━━━━━━━━━━━━\n"
             f"Dirección: <b>{pos['direction']}</b>\n"
-            f"💵 Precio Actual: ${cur_price:,.2f}\n"
+            f"💵 <b>Precio Actual:</b> ${cur_price:,.2f}\n"
             f"💰 <b>Toma Parcial:</b> {int(partial_frac * 100)}% asegurado (+${realized_tp1_usd:,.2f} USD)\n"
-            f"🛡 <b>Gestión:</b> SL movido a <b>Break-Even Protegido (+{be_lock} pts)</b> (${pos['sl']:,.2f})\n"
-            f"🚀 ¡25% corredor buscando el objetivo final a TP2 (+{pos.get('tp2_pts', 1500)} pts)!"
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"🛡 <b>ACCIÓN REQUERIDA (EXCHANGE):</b>\n"
+            f"👉 Mueve tu Stop-Loss a <b>Break-Even + {be_lock} pts</b> (${pos['sl']:,.2f})\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"🚀 <i>¡25% corredor 100% RISK-FREE buscando TP2 (+{pos.get('tp2_pts', 1500)} pts)!</i>"
         )
         send_telegram_alert(msg)
     elif pos.get('tp1_hit'):
@@ -1281,7 +1299,7 @@ def main():
                 f"🎯 <b>TP1 (75% Parcial Asegurado):</b> ${sig['tp1']:,.2f} (+{sig['tp1_pts']} pts)\n"
                 f"🏁 <b>TP2 (25% Corredor Final):</b> ${sig['tp2']:,.2f} (+{sig['tp2_pts']} pts | ~+${tp2_usd:,.2f} USD)\n"
                 f"⏳ <b>Horizonte Óptimo:</b> 5 Velas 4H (20 Horas)\n"
-                f"🛡 <b>Regla Institucional:</b> Al tocar TP1, Stop a Break-Even (+400 pts) (100% Risk-Free)\n"
+                f"🛡 <b>Regla Institucional:</b> Al tocar TP1, Stop a Break-Even (+300 pts) (100% Risk-Free)\n"
                 f"{pillars_str}"
                 f"📈 <b>Motivos:</b> {' • '.join(sig['reasons'])}\n"
                 f"━━━━━━━━━━━━━━━━━━━━\n"

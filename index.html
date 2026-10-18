@@ -321,6 +321,11 @@
       border-color: rgba(0, 240, 144, 0.4);
       color: var(--green-bull);
     }
+    .session-badge.weekend {
+      background: rgba(245, 158, 11, 0.15);
+      border-color: rgba(245, 158, 11, 0.45);
+      color: var(--gold-accent);
+    }
     .session-badge.hibernation {
       background: rgba(239, 68, 68, 0.15);
       border-color: rgba(239, 68, 68, 0.4);
@@ -1881,7 +1886,7 @@
             </div>
 
             <div class="pos-be-alert-pill" id="posBEPill">
-              🛡️ STOP MOVIDO A BREAK-EVEN (+400 PTS) • RISK-FREE
+              🛡️ STOP MOVIDO A BREAK-EVEN (+300 PTS) • RISK-FREE
             </div>
 
             <div class="pos-early-exit-alert" id="posEarlyExitPill">
@@ -1919,8 +1924,8 @@
                 </div>
                 <div style="position:relative; width:100%;">
                   <select id="liveStrategyModeSelect" style="width:100%; box-sizing:border-box; background:var(--bg-card-subtle); border:1px solid var(--border-color); color:var(--text-main); font-size:11px; font-weight:700; border-radius:4px; padding:6px 10px; font-family:var(--font-mono); cursor:pointer; text-overflow:ellipsis; outline:none;">
-                    <option value="4h_optimal" selected>🎯 4H Óptimo: SL -700 | TP1 +900 (75%) | TP2 +1500</option>
-                    <option value="1h_intraday">⚡ 1H Intradía: SL -500 | TP1 +700 (75%) | TP2 +1200</option>
+                    <option value="4h_optimal" selected>🎯 4H Óptimo: SL -700 | TP1 +900 (75%) | TP2 +1500 (BE +300)</option>
+                    <option value="1h_intraday">⚡ 1H Intradía: SL -500 | TP1 +700 (75%) | TP2 +1200 (BE +200)</option>
                     <option value="chart_tf">📊 Dinámico según Temporalidad del Gráfico</option>
                   </select>
                 </div>
@@ -2638,7 +2643,7 @@
       tp2Pts: 1500,          // Institutional TP2 target (+1,500 pts en 4H)
       tp1PartialPct: 0.75,   // 75% toma parcial en TP1
       tp2RunnerPct: 0.25,    // 25% corredor a TP2
-      breakEvenLockPts: 400, // Locks +400 pts profit on BE move (+400 for 4H, +250 for 1H)
+      breakEvenLockPts: 300, // Locks +300 pts profit on BE move (+300 for 4H, +200 for 1H)
       earlyExitMinProfitPts: 400,
       frictionFeePts: 35,    // Realistic Binance taker/slippage friction in pts
       defaultTradeSizeBTC: 0.25,     // Tamaño Base: $20,000 USD (x20 apalancamiento)
@@ -2859,12 +2864,17 @@
           break;
 
         case 'TP1_HIT':
-          text = `🎯 <b>TP1 ALCANZADO (+1.000 PTS) - 75% ASEGURADO</b>\n` +
+          const targetPts = payload.targetTP1 || 900;
+          const beLockPtsVal = payload.beLock || 300;
+          text = `🎯 <b>¡TAKE PROFIT (TP1) ALCANZADO (+${targetPts} PTS)! [TERMINAL WEB]</b>\n` +
                  `━━━━━━━━━━━━━━━━━━━━\n` +
-                 `Direction: <b>${payload.direction}</b>\n` +
+                 `Dirección: <b>${payload.direction}</b>\n` +
                  `💵 <b>Precio Actual:</b> $${(payload.price || 0).toLocaleString('en-US', {minimumFractionDigits: 2})}\n` +
-                 `💰 <b>75% Posición Asegurada:</b> +$${(payload.pnlUsdt || 0).toLocaleString('en-US', {minimumFractionDigits: 2})} (+1.000 pts)\n` +
-                 `🛡 <b>Gestión de Riesgo:</b> Stop-Loss movido a <b>Break-Even Protegido (+400 pts)</b> ($${(payload.newSL || 0).toLocaleString('en-US', {minimumFractionDigits: 2})})\n` +
+                 `💰 <b>75% Posición Asegurada:</b> +$${(payload.pnlUsdt || 0).toLocaleString('en-US', {minimumFractionDigits: 2})} USD\n` +
+                 `━━━━━━━━━━━━━━━━━━━━\n` +
+                 `🛡 <b>ACCIÓN REQUERIDA (EXCHANGE):</b>\n` +
+                 `👉 Mueve tu Stop-Loss a <b>Break-Even + ${beLockPtsVal} pts</b> ($${(payload.newSL || 0).toLocaleString('en-US', {minimumFractionDigits: 2})})\n` +
+                 `━━━━━━━━━━━━━━━━━━━━\n` +
                  `🚀 <b>Estado:</b> ¡25% corredor 100% RISK-FREE buscando TP2 (+1.500 pts)!`;
           break;
 
@@ -3465,41 +3475,48 @@
       const cur = subKlines[subKlines.length - 1];
       const curPrice = cur.c;
 
-      // 1. Session Filter (Adaptativo por temporalidad, max 15 pts)
-      const activeTf = config.timeframe || QUANT_CONFIG.timeframe || '15m';
+      // 1. Session Filter (Max 15 pts) - Riguroso con Fines de Semana y Horarios Institucionales
       const candleDate = new Date(cur.t);
+      const dayOfWeek = candleDate.getUTCDay(); // 0 = Domingo, 6 = Sábado
       const utcHours = candleDate.getUTCHours() + candleDate.getUTCMinutes() / 60;
-      const isWeekend = candleDate.getUTCDay() === 0 || candleDate.getUTCDay() === 6;
+      const isSaturday = dayOfWeek === 6;
+      const isSunday = dayOfWeek === 0;
 
-      let sessionName = 'ASIAN';
+      let sessionName = 'ASIA (TOKIO / HK)';
       let sessionScore = 5;
-      const isLondon = utcHours >= 8.0 && utcHours < 16.5;
-      const isNY = utcHours >= 13.5 && utcHours < 21.0;
-      const isOverlap = isLondon && isNY; // 13:30 - 16:30 UTC
 
-      if (activeTf === '4h' || activeTf === '1h' || activeTf === '1d') {
-        sessionScore = 12;
-        sessionName = activeTf === '1d' ? 'MACRO DIARIO (1D)' : 'ESTRUCTURA 24H';
+      if (isSaturday || (isSunday && utcHours < 22.0)) {
+        // FIN DE SEMANA: Wall Street (NYSE), Londres (LSE) y CME están CERRADOS
+        sessionName = 'FIN DE SEMANA (BOLSAS CERRADAS)';
+        sessionScore = 0; // 0/15 pts: Sin combustible ni respaldo institucional tradicional
+      } else if (isSunday && utcHours >= 22.0) {
+        // Domingo 22:00+ UTC: Apertura semanal de futuros CME y mercados de Asia/Pacífico
+        sessionName = 'APERTURA SEMANAL CME / PACÍFICO';
+        sessionScore = 6;
       } else {
+        // LUNES A VIERNES: Sesiones Institucionales Abiertas
+        const isLondon = utcHours >= 8.0 && utcHours < 16.5;
+        const isNY = utcHours >= 13.0 && utcHours < 21.0;
+        const isOverlap = utcHours >= 13.5 && utcHours < 16.5; // 13:30 - 16:30 UTC: Coincidencia máxima
+
         if (isOverlap) {
           sessionName = 'OVERLAP (LONDRES + NY)';
           sessionScore = 15;
-        } else if (isLondon) {
-          sessionName = 'LONDRES';
-          sessionScore = 12;
         } else if (isNY) {
-          sessionName = 'NEW YORK';
+          sessionName = 'NEW YORK (WALL STREET)';
           sessionScore = 12;
-        } else {
-          sessionName = 'ASIAN';
+        } else if (isLondon) {
+          sessionName = 'LONDRES (EUROPA)';
+          sessionScore = 12;
+        } else if (utcHours >= 0.0 && utcHours < 8.0) {
+          sessionName = 'ASIA (TOKIO / HK)';
           sessionScore = 5;
-        }
-
-        if (isWeekend) {
-          sessionScore = Math.max(0, sessionScore - 8);
+        } else {
+          sessionName = 'INTERSESIÓN (POST-NY)';
+          sessionScore = 3;
         }
       }
-      sessionScore = Math.min(15, sessionScore);
+      sessionScore = Math.min(15, Math.max(0, sessionScore));
 
       // 2. Anti-Chop & TTM Squeeze Regime Detector (Max 15 pts)
       const atr = calculateATR(subKlines, 14);
@@ -3750,6 +3767,7 @@
 
       if (isLongDominant) {
         if (sessionScore >= 10) reasons.push(`Sesión ${sessionName}`);
+        else if (sessionScore === 0) reasons.push('⚠️ Fin de Semana (Bolsas y CME cerrados)');
         if (!ttm.isSqueeze) reasons.push('TTM Squeeze Disparado (Expansión)');
         if (antiChopScore >= 10) reasons.push(`Régimen Expansivo (Chop ${chop.toFixed(1)})`);
         if (longORBBool) reasons.push('Ruptura Cajón ORB');
@@ -3764,6 +3782,7 @@
         if (ichiBlockedLong) reasons.push('⚠️ FILTRO KUMO: Precio bajo la Nube Bajista');
       } else {
         if (sessionScore >= 10) reasons.push(`Sesión ${sessionName}`);
+        else if (sessionScore === 0) reasons.push('⚠️ Fin de Semana (Bolsas y CME cerrados)');
         if (!ttm.isSqueeze) reasons.push('TTM Squeeze Disparado (Expansión)');
         if (antiChopScore >= 10) reasons.push(`Régimen Expansivo (Chop ${chop.toFixed(1)})`);
         if (shortORBBool) reasons.push('Ruptura Cajón ORB');
@@ -3915,7 +3934,7 @@
       updateLivePositionUI(currentPrice, floatingPts, floatingUsd);
 
       // 1. Take Profit TP1 (Toma parcial del 75% asegurando beneficio masivo)
-      const targetTP1 = pos.tp1Pts || (STATE.timeframe === '4h' ? 1000 : QUANT_CONFIG.tp1Pts);
+      const targetTP1 = pos.tp1Pts || (STATE.timeframe === '4h' ? 900 : QUANT_CONFIG.tp1Pts);
       if (!pos.tp1Hit && floatingPts >= targetTP1) {
         pos.tp1Hit = true;
         const cFrac = pos.closedFraction || 0.75;
@@ -3924,18 +3943,20 @@
         const pnl75Usdt = targetTP1 * closedSize;
         pos.realizedPnl += pnl75Usdt;
 
-        // Move Stop-Loss to Break-Even + breakEvenLockPts (+400 pts en 4h)
-        const beLock = pos.beLockPts || (STATE.timeframe === '4h' ? 400 : (STATE.timeframe === '1h' ? 250 : QUANT_CONFIG.breakEvenLockPts));
+        // Move Stop-Loss to Break-Even + breakEvenLockPts (+300 pts en 4h)
+        const beLock = pos.beLockPts || (STATE.timeframe === '4h' ? 300 : (STATE.timeframe === '1h' ? 200 : QUANT_CONFIG.breakEvenLockPts));
         pos.sl = isLong ? (pos.entryPrice + beLock) : (pos.entryPrice - beLock);
         pos.slPts = -beLock;
 
         sound.playTP1();
-        showToast(`🎯 TP1 ALCANZADO (+${targetTP1} pts)! 75% asegurado (+$${pnl75Usdt.toFixed(2)}). Stop en Break-Even (+${beLock} pts)`, 'success');
+        showToast(`🎯 ¡TAKE PROFIT (TP1) ALCANZADO (+${targetTP1} pts)! Mueve Stop-Loss a Break-Even (+${beLock} pts)`, 'success', 6000);
 
         sendTelegramAlert('TP1_HIT', {
           direction: pos.direction,
           price: currentPrice,
           pnlUsdt: pnl75Usdt,
+          targetTP1: targetTP1,
+          beLock: beLock,
           newSL: pos.sl
         });
       }
@@ -3993,7 +4014,7 @@
       // 4. Stop-Loss Triggered
       const slHit = isLong ? (currentPrice <= pos.sl) : (currentPrice >= pos.sl);
       if (slHit) {
-        const beLock = pos.beLockPts || (STATE.timeframe === '4h' ? 400 : 250);
+        const beLock = pos.beLockPts || (STATE.timeframe === '4h' ? 300 : 200);
         const reason = pos.tp1Hit ? `STOP BREAK-EVEN (+${beLock} PTS)` : 'STOP-LOSS';
         closePosition(pos.sl, reason);
       }
@@ -4025,14 +4046,14 @@
         slDistance = 700;
         tp1Dist = 900;
         tp2Dist = 1500;
-        beLockPts = 400;
+        beLockPts = 300;
         maxHoldCandles = 5;
         horizonHours = 20;
       } else if (stratMode === '1h_intraday') {
         slDistance = 500;
         tp1Dist = 700;
         tp2Dist = 1200;
-        beLockPts = 250;
+        beLockPts = 200;
         maxHoldCandles = 6;
         horizonHours = 6;
       } else {
@@ -4041,7 +4062,7 @@
           slDistance = 700;
           tp1Dist = 900;
           tp2Dist = 1500;
-          beLockPts = 400;
+          beLockPts = 300;
           maxHoldCandles = 5;
           horizonHours = 20;
         } else if (activeTf === '1h') {
@@ -5175,7 +5196,7 @@
       // Progress towards TP2
       const targetTP1 = pos.tp1Pts || 900;
       const targetTP2 = pos.tp2Pts || 1500;
-      const beLock = pos.beLockPts || 400;
+      const beLock = pos.beLockPts || 300;
 
       // Dynamically sync milestone header labels to actual position targets
       const tp1Lbl = document.getElementById('posTP1Lbl');
@@ -5500,6 +5521,8 @@
       sessionBadge.textContent = `SESIÓN: ${res.session || 'EVALUANDO'}`;
       if (res.session && res.session.includes('OVERLAP')) {
         sessionBadge.className = 'session-badge overlap';
+      } else if (res.session && res.session.includes('FIN DE SEMANA')) {
+        sessionBadge.className = 'session-badge weekend';
       } else if (res.direction === 'HIBERNATION') {
         sessionBadge.className = 'session-badge hibernation';
       } else {
