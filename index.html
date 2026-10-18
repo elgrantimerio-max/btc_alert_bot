@@ -326,6 +326,11 @@
       border-color: rgba(239, 68, 68, 0.4);
       color: #fca5a5;
     }
+    .session-badge.weekend {
+      background: rgba(245, 158, 11, 0.15);
+      border-color: rgba(245, 158, 11, 0.45);
+      color: var(--gold-accent);
+    }
 
     /* MAIN WORKSPACE LAYOUT */
     .terminal-main-grid {
@@ -2829,6 +2834,11 @@
             tierSizingBlock = `💎 <b>Dimensionamiento Dual A+:</b> Posición $40,000 USD (0.50 BTC) | Margen $2,000 USD (60% Libre)\n`;
           }
 
+          let weekendNotice = '';
+          if (payload.session && payload.session.includes('FIN DE SEMANA')) {
+            weekendNotice = `⚠️ <b>AVISO FIN DE SEMANA:</b> Bolsas TradFi y CME cerradas. Confluencia técnica pura sin volumen institucional bancario.\n`;
+          }
+
           text = tierHeader +
                  `━━━━━━━━━━━━━━━━━━━━\n` +
                  `📊 <b>Puntuación de Confluencia:</b> <code>${payload.score || 70}%</code> (Umbral: ${QUANT_CONFIG.minScoreThreshold}%)\n` +
@@ -2840,6 +2850,7 @@
                  `🏁 <b>TP2 (25% Corredor):</b> $${tp2P.toLocaleString('en-US', {minimumFractionDigits: 2})} (+${tp2PtsVal} pts)\n` +
                  `⏳ <b>Horizonte Óptimo:</b> 5 Velas 4H (20 Horas)\n` +
                  `⏱ <b>Sesión:</b> ${escapeTelegramHtml(payload.session || 'INSTITUCIONAL')}\n` +
+                 weekendNotice +
                  `📈 <b>Motivo:</b> ${reasonsFormatted}\n` +
                  `━━━━━━━━━━━━━━━━━━━━\n` +
                  `🔔 <i>Monitoreo activo tick a tick por Exit Guardian.</i>`;
@@ -3470,22 +3481,29 @@
       const cur = subKlines[subKlines.length - 1];
       const curPrice = cur.c;
 
-      // 1. Session Filter (Adaptativo por temporalidad, max 15 pts)
-      const activeTf = config.timeframe || QUANT_CONFIG.timeframe || '15m';
+      // 1. Session Filter (Adaptativo por temporalidad y régimen de fin de semana, max 15 pts)
+      const activeTf = config.timeframe || QUANT_CONFIG.timeframe || '4h';
       const candleDate = new Date(cur.t);
+      const utcDay = candleDate.getUTCDay(); // 0 = Domingo, 5 = Viernes, 6 = Sábado
       const utcHours = candleDate.getUTCHours() + candleDate.getUTCMinutes() / 60;
-      const isWeekend = candleDate.getUTCDay() === 0 || candleDate.getUTCDay() === 6;
 
-      let sessionName = 'ASIAN';
-      let sessionScore = 5;
+      // Detección institucional de Fin de Semana (Cierre Wall St / CME: Viernes 22:00 UTC hasta Domingo 22:00 UTC)
+      const isWeekend = (utcDay === 5 && utcHours >= 22.0) || (utcDay === 6) || (utcDay === 0 && utcHours < 22.0);
+
+      let sessionName = 'ASIAN / OFF-HOURS';
+      let sessionScore = 6;
       const isLondon = utcHours >= 8.0 && utcHours < 16.5;
       const isNY = utcHours >= 13.5 && utcHours < 21.0;
       const isOverlap = isLondon && isNY; // 13:30 - 16:30 UTC
 
-      if (activeTf === '4h' || activeTf === '1h' || activeTf === '1d') {
-        sessionScore = 12;
-        sessionName = activeTf === '1d' ? 'MACRO DIARIO (1D)' : 'ESTRUCTURA 24H';
+      if (isWeekend) {
+        // EN FIN DE SEMANA: Bolsas tradicionales cerradas. Sin flujo institucional de Londres ni NY.
+        // Ponderación reducida a 4 pts para evitar señales falsas, pero permitiendo operar
+        // si los otros 5 pilares técnicos tienen confluencia máxima (≥64 pts para alcanzar 68%).
+        sessionScore = 4;
+        sessionName = 'FIN DE SEMANA (BOLSAS CERRADAS)';
       } else {
+        // DÍAS LABORALES (Lunes a Viernes con dinero institucional activo):
         if (isOverlap) {
           sessionName = 'OVERLAP (LONDRES + NY)';
           sessionScore = 15;
@@ -3496,15 +3514,16 @@
           sessionName = 'NEW YORK';
           sessionScore = 12;
         } else {
-          sessionName = 'ASIAN';
-          sessionScore = 5;
+          sessionName = 'ASIAN / OFF-HOURS';
+          sessionScore = 6;
         }
 
-        if (isWeekend) {
-          sessionScore = Math.max(0, sessionScore - 8);
+        if (activeTf === '1d') {
+          sessionScore = 14;
+          sessionName = 'MACRO DIARIO (1D)';
         }
       }
-      sessionScore = Math.min(15, sessionScore);
+      sessionScore = Math.min(15, Math.max(0, sessionScore));
 
       // 2. Anti-Chop & TTM Squeeze Regime Detector (Max 15 pts)
       const atr = calculateATR(subKlines, 14);
@@ -3755,6 +3774,7 @@
 
       if (isLongDominant) {
         if (sessionScore >= 10) reasons.push(`Sesión ${sessionName}`);
+        else if (isWeekend) reasons.push('Operativa Fin de Semana (Filtro Institucional Reducido)');
         if (!ttm.isSqueeze) reasons.push('TTM Squeeze Disparado (Expansión)');
         if (antiChopScore >= 10) reasons.push(`Régimen Expansivo (Chop ${chop.toFixed(1)})`);
         if (longORBBool) reasons.push('Ruptura Cajón ORB');
@@ -3769,6 +3789,7 @@
         if (ichiBlockedLong) reasons.push('⚠️ FILTRO KUMO: Precio bajo la Nube Bajista');
       } else {
         if (sessionScore >= 10) reasons.push(`Sesión ${sessionName}`);
+        else if (isWeekend) reasons.push('Operativa Fin de Semana (Filtro Institucional Reducido)');
         if (!ttm.isSqueeze) reasons.push('TTM Squeeze Disparado (Expansión)');
         if (antiChopScore >= 10) reasons.push(`Régimen Expansivo (Chop ${chop.toFixed(1)})`);
         if (shortORBBool) reasons.push('Ruptura Cajón ORB');
@@ -5507,6 +5528,8 @@
       sessionBadge.textContent = `SESIÓN: ${res.session || 'EVALUANDO'}`;
       if (res.session && res.session.includes('OVERLAP')) {
         sessionBadge.className = 'session-badge overlap';
+      } else if (res.session && res.session.includes('FIN DE SEMANA')) {
+        sessionBadge.className = 'session-badge weekend';
       } else if (res.direction === 'HIBERNATION') {
         sessionBadge.className = 'session-badge hibernation';
       } else {

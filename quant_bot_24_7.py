@@ -483,31 +483,40 @@ def evaluate_signal(klines, oi_delta=0.0):
     cur = klines[-1]
     cur_price = cur['c']
 
-    # 1. Session Filter (Max 15 pts)
+    # 1. Session Filter (Max 15 pts) - Detección institucional de fin de semana
     dt = datetime.fromtimestamp(cur['t'] / 1000.0, tz=timezone.utc)
+    utc_day = dt.weekday() # 0 = Lunes, 4 = Viernes, 5 = Sábado, 6 = Domingo
     utc_hours = dt.hour + dt.minute / 60.0
-    is_weekend = dt.weekday() in (5, 6)
+
+    # Cierre Wall St / CME: Viernes 22:00 UTC hasta Domingo 22:00 UTC
+    is_weekend = (utc_day == 4 and utc_hours >= 22.0) or (utc_day == 5) or (utc_day == 6 and utc_hours < 22.0)
 
     is_london = 8.0 <= utc_hours < 16.5
     is_ny = 13.5 <= utc_hours < 21.0
     is_overlap = is_london and is_ny
 
-    session_name = 'ASIAN'
-    session_score = 5
-    if is_overlap:
-        session_name = 'OVERLAP (LONDRES + NY)'
-        session_score = 15
-    elif is_london:
-        session_name = 'LONDRES'
-        session_score = 12
-    elif is_ny:
-        session_name = 'NEW YORK'
-        session_score = 12
-
     if is_weekend:
-        session_score = max(0, session_score - 8)
+        # FIN DE SEMANA: Bolsas tradicionales cerradas. Sin flujo institucional de Londres ni NY.
+        # Ponderación reducida a 4 pts para evitar señales falsas por falta de dinero institucional,
+        # pero permitiendo operar si los otros 5 pilares técnicos tienen confluencia máxima (≥64 pts para alcanzar 68%).
+        session_name = 'FIN DE SEMANA (BOLSAS CERRADAS)'
+        session_score = 4
+    else:
+        # DÍAS LABORALES (Lunes a Viernes con dinero institucional activo):
+        if is_overlap:
+            session_name = 'OVERLAP (LONDRES + NY)'
+            session_score = 15
+        elif is_london:
+            session_name = 'LONDRES'
+            session_score = 12
+        elif is_ny:
+            session_name = 'NEW YORK'
+            session_score = 12
+        else:
+            session_name = 'ASIAN / OFF-HOURS'
+            session_score = 6
 
-    session_score = min(15, session_score)
+    session_score = min(15, max(0, session_score))
 
     # 2. Anti-Chop & TTM Squeeze Regime Detector (Max 15 pts)
     chop = calculate_choppiness(klines, 14)
@@ -721,6 +730,7 @@ def evaluate_signal(klines, oi_delta=0.0):
 
     if is_long_dominant:
         if session_score >= 10: reasons.append(f"Sesión {session_name}")
+        elif is_weekend: reasons.append("Operativa Fin de Semana (Filtro Institucional Reducido)")
         if not ttm['is_squeeze']: reasons.append("TTM Squeeze Disparado (Expansión)")
         if anti_chop_score >= 10: reasons.append(f"Régimen Expansivo (Chop {chop:.1f})")
         if long_orb: reasons.append("Ruptura Cajón ORB")
@@ -734,6 +744,7 @@ def evaluate_signal(klines, oi_delta=0.0):
         if ichi_blocked_long: reasons.append("⚠️ FILTRO KUMO: Precio bajo la Nube Bajista")
     else:
         if session_score >= 10: reasons.append(f"Sesión {session_name}")
+        elif is_weekend: reasons.append("Operativa Fin de Semana (Filtro Institucional Reducido)")
         if not ttm['is_squeeze']: reasons.append("TTM Squeeze Disparado (Expansión)")
         if anti_chop_score >= 10: reasons.append(f"Régimen Expansivo (Chop {chop:.1f})")
         if short_orb: reasons.append("Ruptura Cajón ORB")
@@ -1273,9 +1284,18 @@ def main():
                     f"⏱ <b>Timing Sugerido:</b> {opt.get('timing_advice', 'Entrada activa.')}\n"
                 )
 
+            weekend_notice = ""
+            if "FIN DE SEMANA" in sig.get('session', ''):
+                weekend_notice = (
+                    "⚠️ <b>AVISO FIN DE SEMANA (Bolsas TradFi/CME Cerradas):</b>\n"
+                    "  • Ponderación de sesión reducida a <code>4/15 pts</code> (Falta flujo institucional bancario).\n"
+                    "  • Esta posición se activa porque los otros 5 pilares técnicos suman ≥64 pts.\n"
+                )
+
             msg = (
                 f"{header_title}"
                 f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"{weekend_notice}"
                 f"📊 <b>Puntuación de Confluencia:</b> <code>{sig['score']}%</code> (Umbral Mínimo: {QUANT_CONFIG['min_score_threshold']}%)\n"
                 f"💵 <b>Precio de Mercado Actual:</b> ${sig['cur_price']:,.2f}\n"
                 f"{opt_str}"
