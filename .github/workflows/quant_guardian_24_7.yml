@@ -1,0 +1,37 @@
+name: BTC Quant Guardian 24/7 (Telegram Automatism)
+
+on:
+  schedule:
+    # Se ejecuta cada 30 minutos automáticamente en los servidores de GitHub
+    - cron: '*/30 * * * *'
+  workflow_dispatch: # Permite pulsar "Run workflow" manualmente
+  push:
+    branches: [ main, master ]
+
+permissions:
+  contents: write
+
+jobs:
+  evaluate-and-alert:
+    name: Evaluate 9 Indicators (Ichimoku, TTM Squeeze, OI) & Alert Telegram
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: ⚡ Execute Quantitative Engine & Check Confluence
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN || '8635759809:AAF8YTMVkbVizhe2V7ciw_QtOktDqapJWo4' }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID || '159239770' }}
+        run: |
+          python3 quant_bot_24_7.py
+
+      - name: 💾 Persist State & Alert Cache (Prevent Duplicates)
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add last_alert.json state.json 2>/dev/null || true
+          git diff --quiet && git diff --staged --quiet || (git commit -m "chore: persist quant guardian state [skip ci]" && git push)
+        continue-on-error: true
