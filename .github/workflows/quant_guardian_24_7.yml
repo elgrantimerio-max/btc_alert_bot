@@ -1,37 +1,51 @@
-name: BTC Quant Guardian 24/7 (Telegram Automatism)
+name: BTC Quant Guardian 24/7 (Continuous Autonomous Engine)
 
 on:
   schedule:
-    # Se ejecuta cada 5 minutos automáticamente en los servidores de GitHub
-    - cron: '*/5 * * * *'
-  workflow_dispatch: # Permite pulsar "Run workflow" manualmente
+    # Se ejecuta en relevo continuo cada 30 minutos
+    - cron: '*/30 * * * *'
+  workflow_dispatch: # Permite pulsar "Run workflow" manualmente en cualquier momento
   push:
     branches: [ main, master ]
+    paths-ignore:
+      - 'last_alert.json'
+      - 'state.json'
+      - 'journal.json'
+
+concurrency:
+  group: quant-guardian-24-7
+  cancel-in-progress: false
 
 permissions:
   contents: write
 
 jobs:
-  evaluate-and-alert:
-    name: Evaluate 9 Indicators (Ichimoku, TTM Squeeze, OI) & Alert Telegram
+  guardian-continuous-session:
+    name: 24/7 Live Autonomous Monitoring (15s Tick Scan & Telegram Alerter)
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 60
 
     steps:
       - name: 📥 Checkout Repository
         uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          fetch-depth: 1
 
-      - name: ⚡ Execute Quantitative Engine & Check Confluence
+      - name: ⚡ Run Autonomous Quant Guardian 24/7 Continuous Session (45 min @ 15s)
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          QUANT_TIMEFRAME: '1h'
         run: |
-          python3 quant_bot_24_7.py
+          python3 quant_bot_24_7.py --continuous --duration 2700 --interval 15
 
-      - name: 💾 Persist State & Alert Cache (Prevent Duplicates)
+      - name: 💾 Final Handover State Sync & Git Push
+        if: always()
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git pull --rebase origin $(git branch --show-current) 2>/dev/null || true
           git add last_alert.json state.json journal.json 2>/dev/null || true
-          git diff --quiet && git diff --staged --quiet || (git commit -m "chore: persist quant guardian state [skip ci]" && git push)
+          git diff --quiet && git diff --staged --quiet || (git commit -m "chore: handover continuous session state [skip ci]" && git push)
         continue-on-error: true
