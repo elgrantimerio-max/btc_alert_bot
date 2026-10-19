@@ -2794,6 +2794,10 @@
     }
 
     async function sendTelegramAlert(type, payload = {}) {
+      if (type !== 'TEST' && STATE.openPosition && STATE.openPosition.isCloud) {
+        console.log('[TELEGRAM] Alerta ignorada en navegador: Quant Guardian 24/7 ya la gestiona en la nube.');
+        return;
+      }
       let text = '';
       const nowUtc = new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
 
@@ -4262,6 +4266,103 @@
               showToast(`☁️ Sincronizados ${mergedCount} trades ejecutados 24/7 por Quant Guardian en la nube`, 'info', 4000);
             }
           }
+        }
+      } catch (err) {
+        // En entorno local offline o file:// se omite silenciosamente
+      }
+    }
+
+    // Sincronización bidireccional con el estado en vivo de GitHub Actions (Quant Guardian 24/7)
+    async function syncCloudState() {
+      try {
+        const resp = await fetch('state.json?t=' + Date.now());
+        if (!resp.ok) return;
+        const cloudState = await resp.json();
+        if (!cloudState) return;
+
+        // 1. Manejo de Posición Abierta en la Nube (Quant Guardian 24/7)
+        if (cloudState.open_position) {
+          const cp = cloudState.open_position;
+          const isNewOrChanged = !STATE.openPosition || STATE.openPosition.id !== cp.id;
+
+          if (isNewOrChanged) {
+            console.log('[CLOUD SYNC] Posición activa detectada en state.json:', cp);
+            const btcSize = cp.btc_qty || (cp.notional ? cp.notional / cp.entry_price : 0.25);
+            STATE.openPosition = {
+              id: cp.id,
+              isAutonomous: true,
+              isCloud: true,
+              direction: cp.direction,
+              entryPrice: cp.entry_price,
+              size: btcSize,
+              remainingSize: cp.tp1_hit ? (btcSize * 0.25) : btcSize,
+              sl: cp.sl,
+              slPts: Math.abs(Math.round(cp.entry_price - cp.sl)),
+              tp1: cp.tp1,
+              tp1Pts: cp.tp1_pts || Math.abs(Math.round(cp.tp1 - cp.entry_price)),
+              tp2: cp.tp2,
+              tp2Pts: cp.tp2_pts || Math.abs(Math.round(cp.tp2 - cp.entry_price)),
+              beLockPts: 300,
+              closedFraction: 0.75,
+              maxHoldCandles: 5,
+              horizonHours: (cp.timeframe === '1h' || QUANT_CONFIG.timeframe === '1h') ? 5 : 20,
+              tp1Hit: Boolean(cp.tp1_hit),
+              earlyExitWarned: Boolean(cp.early_exit_warned),
+              realizedPnl: cp.realized_usd || 0,
+              openedAt: cp.opened_at,
+              reason: `☁️ Cloud Guardian 24/7 [${cp.tier || 'ESTÁNDAR'}]`
+            };
+
+            const curPrice = STATE.currentPrice || cp.entry_price;
+            const pts = (STATE.openPosition.direction === 'LONG') ? (curPrice - cp.entry_price) : (cp.entry_price - curPrice);
+            const usd = pts * STATE.openPosition.size;
+            updateLivePositionUI(curPrice, pts, usd);
+            renderChart();
+            showToast(`☁️ [24/7 NUBE] Posición activa sincronizada: ${cp.direction} en $${cp.entry_price.toLocaleString()}`, 'info', 5000);
+          } else {
+            // Posición ya abierta: sincronizar eventos (TP1 alcanzado, SL movido a Break-Even)
+            if (cp.tp1_hit && !STATE.openPosition.tp1Hit) {
+              STATE.openPosition.tp1Hit = true;
+              STATE.openPosition.sl = cp.sl;
+              STATE.openPosition.remainingSize = STATE.openPosition.size * 0.25;
+              STATE.openPosition.realizedPnl = cp.realized_usd || STATE.openPosition.realizedPnl;
+              showToast(`🎯 [24/7 NUBE] TP1 alcanzado en la nube. SL movido a Break-Even ($${cp.sl.toLocaleString()})`, 'success', 5000);
+            }
+            if (cp.sl !== STATE.openPosition.sl) {
+              STATE.openPosition.sl = cp.sl;
+            }
+          }
+        } else if (STATE.openPosition && STATE.openPosition.isCloud) {
+          // La posición en la nube se ha cerrado
+          console.log('[CLOUD SYNC] La posición en la nube ha finalizado. Sincronizando diario...');
+          STATE.openPosition = null;
+          resetLivePositionUI();
+          renderChart();
+          loadJournal();
+          showToast('☁️ [24/7 NUBE] Operación finalizada y archivada en el Diario de Trading.', 'info', 5000);
+        }
+
+        // 2. Manejo de Setup Pendiente de Retest en la Nube
+        if (cloudState.pending_setup && !STATE.openPosition) {
+          const ps = cloudState.pending_setup;
+          STATE.pendingSetup = {
+            direction: ps.direction,
+            score: ps.score,
+            autoSize: ps.btc_qty || 0.25,
+            tier: ps.tier || 'ESTÁNDAR',
+            isTierAPlus: Boolean(ps.is_tier_a_plus),
+            sl: ps.sl,
+            tp1: ps.tp1,
+            tp2: ps.tp2,
+            zoneMin: ps.zone_min,
+            zoneMax: ps.zone_max,
+            isCloud: true,
+            createdAt: ps.created_at ? new Date(ps.created_at).getTime() : Date.now()
+          };
+          updatePendingRetestUI();
+        } else if (!cloudState.pending_setup && STATE.pendingSetup && STATE.pendingSetup.isCloud) {
+          STATE.pendingSetup = null;
+          updatePendingRetestUI();
         }
       } catch (err) {
         // En entorno local offline o file:// se omite silenciosamente
@@ -7575,6 +7676,9 @@
       console.log('Inicializando BTC Quant Terminal V6.5 - Pro Edition...');
       initTelegramCredentials();
       loadJournal();
+      syncCloudState();
+      setInterval(syncCloudState, 15000);
+      setInterval(loadJournal, 30000);
       attachEventListeners();
       toggleAutonomousTrading(STATE.isAutonomousTradingEnabled);
       setupChartInteractions();

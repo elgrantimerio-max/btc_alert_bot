@@ -10,6 +10,7 @@ import os
 import sys
 import json
 import math
+import time
 import urllib.request
 import urllib.error
 from datetime import datetime, timezone, timedelta
@@ -40,9 +41,12 @@ if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
 
 TELEGRAM_API_URL = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage" if TELEGRAM_BOT_TOKEN else ""
 
+active_tf = os.environ.get('QUANT_TIMEFRAME', '1h').lower()
+is_1h = (active_tf == '1h')
+
 QUANT_CONFIG = {
     'symbol': 'BTCUSDT',
-    'timeframe': '4h',
+    'timeframe': active_tf,
     'limit': 500,
     'min_score_threshold': 68,
     'atr_multiplier': 1.2,
@@ -50,16 +54,17 @@ QUANT_CONFIG = {
     'max_stop_loss_pts': 1500,
     'tp1_atr_multiplier': 1.2,
     'tp2_atr_multiplier': 3.6,
-    'tp1_pts': 900,
-    'tp2_pts': 1500,
+    'tp1_pts': 700 if is_1h else 900,
+    'tp2_pts': 1200 if is_1h else 1500,
+    'sl_pts': 500 if is_1h else 700,
     'tp1_partial_pct': 0.75,
     'tp2_runner_pct': 0.25,
-    'break_even_lock_pts': 300, # Locks +300 pts profit on BE move
-    'max_hold_candles': 5, # 5 velas de 4H = 20 horas (Horizonte Óptimo)
+    'break_even_lock_pts': 200 if is_1h else 300,
+    'max_hold_candles': 5, # 5 velas (5h en 1H, 20h en 4H)
     'break_even_buffer_atr': 0.25,
     'trailing_trigger_atr': 1.8,
     'trailing_distance_atr': 1.1,
-    'early_exit_min_profit_pts': 400,
+    'early_exit_min_profit_pts': 350 if is_1h else 400,
     'friction_fee_pts': 35,
     'bankroll_usdt': 5000.0,
     'trade_notional_usdt': 20000.0,
@@ -67,7 +72,7 @@ QUANT_CONFIG = {
     'default_trade_size_btc': 0.25,
     'tier_a_plus_trade_size_btc': 0.50,
     'leverage': 20,
-    'signal_validity_minutes': 120 # Ventana de validez: 2 horas (24 ciclos del cron de 5 min) para esperar el retest
+    'signal_validity_minutes': 60 if is_1h else 120 # Ventana de validez: 1h (12 ciclos) en 1H o 2h (24 ciclos) en 4H
 }
 
 STATE_FILE = 'state.json'
@@ -180,6 +185,22 @@ def fetch_binance_open_interest():
     except Exception as e:
         print(f"[DATA WARN] No se pudo obtener Open Interest de Futuros: {e}")
         return None
+
+def fetch_binance_ticker_price():
+    endpoints = [
+        f"https://data-api.binance.vision/api/v3/ticker/price?symbol={QUANT_CONFIG['symbol']}",
+        f"https://api.binance.com/api/v3/ticker/price?symbol={QUANT_CONFIG['symbol']}",
+        f"https://api1.binance.com/api/v3/ticker/price?symbol={QUANT_CONFIG['symbol']}"
+    ]
+    for url in endpoints:
+        try:
+            req = urllib.request.Request(url, headers={'User-Agent': 'BTCQuantGuardian/6.5'})
+            with urllib.request.urlopen(req, timeout=6) as response:
+                data = json.loads(response.read().decode('utf-8'))
+                return float(data['price'])
+        except Exception:
+            continue
+    return None
 
 # 4. QUANTITATIVE INDICATOR CALCULATIONS
 def calculate_tr(h, l, prev_c):
@@ -853,6 +874,42 @@ def evaluate_signal(klines, oi_delta=0.0):
     }
 
 # 6. DYNAMIC POSITION GUARDIAN & CLOUD PAPER TRADING RECORDER
+def push_git_state_update(commit_message="chore: sync quant guardian state"):
+    try:
+        if os.path.exists('.git'):
+            os.system('git config --global user.name "github-actions[bot]" 2>/dev/null')
+            os.system('git config --global user.email "github-actions[bot]@users.noreply.github.com" 2>/dev/null')
+            os.system('git add last_alert.json state.json journal.json 2>/dev/null')
+            os.system(f'git diff --staged --quiet || (git commit -m "{commit_message} [skip ci]" && git push) 2>/dev/null')
+    except Exception as e:
+        print(f"[GIT SYNC ERROR] {e}")
+
+def load_state():
+    state = {
+        'open_position': None,
+        'pending_setup': None,
+        'last_known_oi': None,
+        'oi_delta': 0.0,
+        'last_updated': datetime.now(timezone.utc).isoformat()
+    }
+    if os.path.exists(STATE_FILE):
+        try:
+            with open(STATE_FILE, 'r', encoding='utf-8') as f:
+                loaded = json.load(f)
+                if isinstance(loaded, dict):
+                    state.update(loaded)
+        except Exception as e:
+            print(f"[STATE LOAD WARN] {e}")
+    return state
+
+def save_state(state):
+    state['last_updated'] = datetime.now(timezone.utc).isoformat()
+    try:
+        with open(STATE_FILE, 'w', encoding='utf-8') as f:
+            json.dump(state, f, indent=2)
+    except Exception as e:
+        print(f"[STATE SAVE ERROR] {e}")
+
 def record_cloud_closed_trade(pos, exit_price, reason):
     is_long = pos['direction'] == 'LONG'
     pts = (exit_price - pos['entry_price']) if is_long else (pos['entry_price'] - exit_price)
@@ -908,18 +965,11 @@ def record_cloud_closed_trade(pos, exit_price, reason):
         with open(JOURNAL_FILE, 'w', encoding='utf-8') as f:
             json.dump(journal, f, indent=2)
         print(f"[CLOUD JOURNAL] Operación registrada con éxito en {JOURNAL_FILE}: {total_net_pts:+} pts (${total_net_pnl_usd:,.2f} USD)")
+        push_git_state_update(f"chore: record closed trade ({reason})")
     except Exception as e:
         print(f"[CLOUD JOURNAL ERROR] No se pudo guardar en {JOURNAL_FILE}: {e}")
 
-def monitor_cloud_position(cur_price, klines):
-    if not os.path.exists(STATE_FILE):
-        return
-    try:
-        with open(STATE_FILE, 'r') as f:
-            state = json.load(f)
-    except Exception:
-        return
-
+def monitor_cloud_position(cur_price, klines, state):
     pos = state.get('open_position')
     if not pos:
         return
@@ -949,9 +999,16 @@ def monitor_cloud_position(cur_price, klines):
             f"🛡 <b>ACCIÓN REQUERIDA (EXCHANGE):</b>\n"
             f"👉 Mueve tu Stop-Loss a <b>Break-Even + {be_lock} pts</b> (${pos['sl']:,.2f})\n"
             f"━━━━━━━━━━━━━━━━━━━━\n"
-            f"🚀 <i>¡25% corredor 100% RISK-FREE buscando TP2 (+{pos.get('tp2_pts', 1500)} pts)!</i>"
+            f"🚀 <i>¡25% corredor 100% RISK-FREE buscando TP2 (+{pos.get('tp2_pts', 1200)} pts)!</i>"
         )
         send_telegram_alert(msg)
+        state['last_updated'] = datetime.now(timezone.utc).isoformat()
+        try:
+            with open(STATE_FILE, 'w') as f:
+                json.dump(state, f, indent=2)
+            push_git_state_update("chore: live guardian TP1 hit and moved SL to BE")
+        except Exception:
+            pass
     elif pos.get('tp1_hit'):
         atr = calculate_atr(klines, 14)
         peak = pos.get('peak_price', cur_price)
@@ -1023,10 +1080,11 @@ def monitor_cloud_position(cur_price, klines):
             try:
                 opened_dt = datetime.fromisoformat(opened_str)
                 elapsed_hours = (datetime.now(timezone.utc) - opened_dt).total_seconds() / 3600.0
-                max_hours = QUANT_CONFIG.get('max_hold_candles', 5) * 4
+                candle_hours = 4 if QUANT_CONFIG.get('timeframe') == '4h' else 1
+                max_hours = QUANT_CONFIG.get('max_hold_candles', 5) * candle_hours
                 if elapsed_hours >= max_hours:
                     msg = (
-                        f"⌛ <b>CIERRE POR TIEMPO MÁXIMO (20H / 5 VELAS) [CLOUD GUARDIAN]</b>\n"
+                        f"⌛ <b>CIERRE POR TIEMPO MÁXIMO ({max_hours}H / 5 VELAS) [CLOUD GUARDIAN]</b>\n"
                         f"━━━━━━━━━━━━━━━━━━━━\n"
                         f"Dirección: <b>{pos['direction']}</b>\n"
                         f"💵 Precio Cierre: ${cur_price:,.2f}\n"
@@ -1034,41 +1092,38 @@ def monitor_cloud_position(cur_price, klines):
                         f"💡 Posición liquidada por límite de tiempo de la estrategia óptima."
                     )
                     send_telegram_alert(msg)
-                    record_cloud_closed_trade(pos, cur_price, "LÍMITE TIEMPO 20H")
+                    record_cloud_closed_trade(pos, cur_price, f"LÍMITE TIEMPO {max_hours}H")
                     state['open_position'] = None
             except Exception:
                 pass
 
-    state['last_updated'] = datetime.now(timezone.utc).isoformat()
-    with open(STATE_FILE, 'w') as f:
-        json.dump(state, f, indent=2)
+    save_state(state)
 
 def check_cloud_pending_setup(cur_price, state, klines):
     pending = state.get('pending_setup')
     if not pending or state.get('open_position'):
         return
 
-    # 1. Comprobar Expiración Temporal (2 horas / 24 ciclos del cron de 5 min)
+    # 1. Comprobar Expiración Temporal
     created_at_str = pending.get('created_at')
     if created_at_str:
         try:
             created_dt = datetime.fromisoformat(created_at_str)
             elapsed_min = (datetime.now(timezone.utc) - created_dt).total_seconds() / 60.0
-            max_wait_min = QUANT_CONFIG.get('signal_validity_minutes', 120)
+            max_wait_min = QUANT_CONFIG.get('signal_validity_minutes', 60 if is_1h else 120)
             if elapsed_min > max_wait_min:
                 print(f"[RETEST SETUP EXPIRADO] La señal {pending['direction']} expiró tras {elapsed_min:.0f} min sin retest.")
                 msg = (
                     f"⌛ <b>SEÑAL PENDIENTE EXPIRADA [CLOUD GUARDIAN]</b>\n"
                     f"━━━━━━━━━━━━━━━━━━━━\n"
                     f"Dirección: <b>{pending['direction']}</b>\n"
-                    f"⏱ Tiempo: 2 horas sin alcanzar zona de retest.\n"
+                    f"⏱ Tiempo: {elapsed_min:.0f} min sin alcanzar zona de retest.\n"
                     f"💡 Cancelada por protección de capital para evitar entradas tardías en movimientos agotados."
                 )
                 send_telegram_alert(msg)
                 state['pending_setup'] = None
-                state['last_updated'] = datetime.now(timezone.utc).isoformat()
-                with open(STATE_FILE, 'w') as f:
-                    json.dump(state, f, indent=2)
+                save_state(state)
+                push_git_state_update("chore: cloud guardian expired retest setup")
                 return
         except Exception:
             pass
@@ -1101,9 +1156,8 @@ def check_cloud_pending_setup(cur_price, state, klines):
         )
         send_telegram_alert(msg)
         state['pending_setup'] = None
-        state['last_updated'] = datetime.now(timezone.utc).isoformat()
-        with open(STATE_FILE, 'w') as f:
-            json.dump(state, f, indent=2)
+        save_state(state)
+        push_git_state_update("chore: cloud guardian cancelled invalidated retest setup")
         return
 
     # 3. Comprobar si el Precio ha entrado en la Zona de Retest
@@ -1152,63 +1206,11 @@ def check_cloud_pending_setup(cur_price, state, klines):
         )
         send_telegram_alert(msg)
         state['pending_setup'] = None
-        state['last_updated'] = datetime.now(timezone.utc).isoformat()
-        with open(STATE_FILE, 'w') as f:
-            json.dump(state, f, indent=2)
+        save_state(state)
+        push_git_state_update("chore: cloud guardian executed retest entry")
 
-# 7. MAIN RUNNER
-def main():
-    print(f"[{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}] Iniciando escaneo cuántico 24/7 de BTC...")
-    if TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID:
-        masked_tok = TELEGRAM_BOT_TOKEN[:6] + "..." + TELEGRAM_BOT_TOKEN[-4:] if len(TELEGRAM_BOT_TOKEN) > 10 else "***"
-        print(f"[SECURITY] Credenciales Telegram activas vía Secretos de GitHub (Bot: {masked_tok}, Chat ID: {TELEGRAM_CHAT_ID})")
-    else:
-        print("[SECURITY WARN] TELEGRAM_BOT_TOKEN o TELEGRAM_CHAT_ID no detectados en variables de entorno.")
-        print("[INFO] Configura 'TELEGRAM_BOT_TOKEN' y 'TELEGRAM_CHAT_ID' en GitHub Secrets (Settings > Secrets and variables > Actions).")
-
-    klines = fetch_binance_klines()
-    if not klines:
-        print("[ERROR] Imposible continuar sin datos.")
-        sys.exit(1)
-
-    cur_price = klines[-1]['c']
-    print(f"[PRECIO BTC] ${cur_price:,.2f}")
-
-    # Fetch Futures Open Interest and compute delta
-    current_oi = fetch_binance_open_interest()
-    oi_delta = 0.0
-    state = {}
-    if os.path.exists(STATE_FILE):
-        try:
-            with open(STATE_FILE, 'r') as f:
-                state = json.load(f)
-                last_oi = state.get('last_known_oi')
-                if last_oi is not None and current_oi is not None:
-                    oi_delta = current_oi - float(last_oi)
-        except Exception:
-            pass
-
-    if current_oi is not None:
-        state['last_known_oi'] = current_oi
-        state['oi_delta'] = oi_delta
-        try:
-            with open(STATE_FILE, 'w') as f:
-                json.dump(state, f, indent=2)
-        except Exception:
-            pass
-
-    if current_oi:
-        print(f"[OPEN INTEREST] OI: {current_oi:,.1f} BTC | Delta: {oi_delta:+,.1f} BTC")
-    else:
-        print("[OPEN INTEREST] No disponible (usando Delta 0)")
-
-    # Monitor any existing position in cloud state
-    monitor_cloud_position(cur_price, klines)
-
-    # Check and execute pending setup waiting for retest
-    check_cloud_pending_setup(cur_price, state, klines)
-
-    # Evaluate new entry signals with OI Delta filter
+# 7. QUANTITATIVE SIGNAL EVALUATION & EXECUTION ENGINE
+def evaluate_and_trigger_new_signal(klines, state, oi_delta=0.0):
     sig = evaluate_signal(klines, oi_delta=oi_delta)
     if not sig:
         print("[ANALYSIS] Sin datos suficientes.")
@@ -1218,13 +1220,11 @@ def main():
 
     # Check last alert cache to prevent duplicate alerts on the same setup
     last_alert_key = None
-    last_alert_time = None
     if os.path.exists(LAST_ALERT_FILE):
         try:
-            with open(LAST_ALERT_FILE, 'r') as f:
+            with open(LAST_ALERT_FILE, 'r', encoding='utf-8') as f:
                 last_alert_data = json.load(f)
                 last_alert_key = last_alert_data.get('alert_key')
-                last_alert_time = last_alert_data.get('timestamp')
         except Exception:
             pass
 
@@ -1303,30 +1303,33 @@ def main():
                 f"🛑 <b>Stop-Loss:</b> ${sig['sl']:,.2f} (Riesgo: -{sig['sl_pts']} pts | ~-${sl_usd:,.2f} USD)\n"
                 f"🎯 <b>TP1 (75% Parcial Asegurado):</b> ${sig['tp1']:,.2f} (+{sig['tp1_pts']} pts)\n"
                 f"🏁 <b>TP2 (25% Corredor Final):</b> ${sig['tp2']:,.2f} (+{sig['tp2_pts']} pts | ~+${tp2_usd:,.2f} USD)\n"
-                f"⏳ <b>Horizonte Óptimo:</b> 5 Velas 4H (20 Horas)\n"
-                f"🛡 <b>Regla Institucional:</b> Al tocar TP1, Stop a Break-Even (+300 pts) (100% Risk-Free)\n"
+                f"⏳ <b>Horizonte Óptimo:</b> 5 Velas ({5 if is_1h else 20} Horas)\n"
+                f"🛡 <b>Regla Institucional:</b> Al tocar TP1, Stop a Break-Even (+{QUANT_CONFIG['break_even_lock_pts']} pts) (100% Risk-Free)\n"
                 f"{pillars_str}"
                 f"📈 <b>Motivos:</b> {' • '.join(sig['reasons'])}\n"
                 f"━━━━━━━━━━━━━━━━━━━━\n"
-                f"☁️ <i>Quant Guardian 24/7 ejecutándose cada 5 minutos en GitHub Actions.</i>"
+                f"☁️ <i>Quant Guardian 24/7 ejecutándose en vivo en GitHub Actions.</i>"
             )
             send_telegram_alert(msg)
 
             # Guardar cache de última alerta para evitar duplicados
-            with open(LAST_ALERT_FILE, 'w') as f:
-                json.dump({
-                    'alert_key': cur_candle_key,
-                    'direction': sig['direction'],
-                    'score': sig['score'],
-                    'price': sig['cur_price'],
-                    'is_tier_a_plus': is_a_plus,
-                    'notional': notional,
-                    'timestamp': datetime.now(timezone.utc).isoformat()
-                }, f, indent=2)
+            try:
+                with open(LAST_ALERT_FILE, 'w', encoding='utf-8') as f:
+                    json.dump({
+                        'alert_key': cur_candle_key,
+                        'direction': sig['direction'],
+                        'score': sig['score'],
+                        'price': sig['cur_price'],
+                        'is_tier_a_plus': is_a_plus,
+                        'notional': notional,
+                        'timestamp': datetime.now(timezone.utc).isoformat()
+                    }, f, indent=2)
+            except Exception as e:
+                print(f"[LAST ALERT SAVE ERROR] {e}")
 
             # Lógica de Disparo Respetando Retest:
             if timing_status == 'WAIT_PULLBACK':
-                # Si el precio está sobreextendido, no entrar a mercado ciegamente. Armar señal pendiente de retest por 2 horas
+                # Si el precio está sobreextendido, no entrar a mercado ciegamente. Armar señal pendiente de retest
                 if not state.get('open_position') and not state.get('pending_setup'):
                     state['pending_setup'] = {
                         'direction': sig['direction'],
@@ -1347,10 +1350,9 @@ def main():
                         'optimal_price': opt.get('optimal_price', sig['cur_price']),
                         'created_at': datetime.now(timezone.utc).isoformat()
                     }
-                    state['last_updated'] = datetime.now(timezone.utc).isoformat()
-                    with open(STATE_FILE, 'w') as f:
-                        json.dump(state, f, indent=2)
-                    print(f"[CLOUD PAPER TRADING] Señal {sig['direction']} armada en espera de retest (${opt.get('zone_min'):,.2f} - ${opt.get('zone_max'):,.2f}). Válida por 2 horas (24 ciclos del cron).")
+                    save_state(state)
+                    push_git_state_update("chore: set pending retest setup")
+                    print(f"[CLOUD PAPER TRADING] Señal {sig['direction']} armada en espera de retest (${opt.get('zone_min'):,.2f} - ${opt.get('zone_max'):,.2f}).")
             else:
                 # El precio ya está en zona de retest (ENTER_NOW o PULLBACK_FAVORABLE)
                 if not state.get('open_position'):
@@ -1372,14 +1374,181 @@ def main():
                         'early_exit_warned': False,
                         'opened_at': datetime.now(timezone.utc).isoformat()
                     }
-                    state['last_updated'] = datetime.now(timezone.utc).isoformat()
-                    with open(STATE_FILE, 'w') as f:
-                        json.dump(state, f, indent=2)
+                    save_state(state)
+                    push_git_state_update("chore: cloud guardian opened new live trade")
                     print(f"[CLOUD PAPER TRADING] Nueva posición autónoma abierta en retest: {sig['direction']} en ${sig['cur_price']:,.2f} ({trade_id})")
                 else:
                     print(f"[CLOUD PAPER TRADING] Posición {state['open_position']['direction']} aún abierta. No se abren posiciones concurrentes.")
     else:
         print(f"[STATUS] Sin señal de disparo (Score {sig['score']}% < {QUANT_CONFIG['min_score_threshold']}%).")
+
+    save_state(state)
+
+# 8. EXECUTION MODES: SINGLE CYCLE & CONTINUOUS 24/7 GUARDIAN
+def run_single_cycle():
+    print(f"[{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}] Iniciando escaneo cuántico 24/7 de BTC (Single Cycle)...")
+    if TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID:
+        masked_tok = TELEGRAM_BOT_TOKEN[:6] + "..." + TELEGRAM_BOT_TOKEN[-4:] if len(TELEGRAM_BOT_TOKEN) > 10 else "***"
+        print(f"[SECURITY] Credenciales Telegram activas vía Secretos de GitHub (Bot: {masked_tok}, Chat ID: {TELEGRAM_CHAT_ID})")
+    else:
+        print("[SECURITY WARN] TELEGRAM_BOT_TOKEN o TELEGRAM_CHAT_ID no detectados en variables de entorno.")
+
+    klines = fetch_binance_klines()
+    if not klines:
+        print("[ERROR] Imposible continuar sin datos.")
+        sys.exit(1)
+
+    cur_price = klines[-1]['c']
+    print(f"[PRECIO BTC] ${cur_price:,.2f}")
+
+    current_oi = fetch_binance_open_interest()
+    state = load_state()
+    oi_delta = 0.0
+
+    if current_oi is not None:
+        last_oi = state.get('last_known_oi')
+        if last_oi is not None:
+            oi_delta = current_oi - float(last_oi)
+        state['last_known_oi'] = current_oi
+        state['oi_delta'] = oi_delta
+        print(f"[OPEN INTEREST] OI: {current_oi:,.1f} BTC | Delta: {oi_delta:+,.1f} BTC")
+    else:
+        print("[OPEN INTEREST] No disponible (usando Delta 0)")
+
+    # Monitor any existing position in cloud state
+    monitor_cloud_position(cur_price, klines, state)
+
+    # Check and execute pending setup waiting for retest
+    check_cloud_pending_setup(cur_price, state, klines)
+
+    # Evaluate new entry signals with OI Delta filter
+    evaluate_and_trigger_new_signal(klines, state, oi_delta=oi_delta)
+
+def run_continuous(duration_seconds=2700, interval_seconds=15):
+    """
+    Continuous Live Monitoring Loop for GitHub Actions / VPS.
+    Monitors Bitcoin tick-by-tick every interval_seconds (default 15s).
+    Runs for duration_seconds (default 45 min = 2700s).
+    Executes retests, TP1, SL, TP2, and periodic quantitative signal scans.
+    """
+    start_time = time.time()
+    end_time = start_time + duration_seconds
+    cycle_count = 0
+    full_scan_interval_seconds = 60 # Escaneo cuantitativo completo cada 60s
+    last_full_scan_time = 0
+
+    print(f"[{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}] Iniciando GUARDIAN CONTINUO 24/7...")
+    print(f"  • Duración sesión: {duration_seconds}s ({duration_seconds/60:.0f} min)")
+    print(f"  • Intervalo escaneo precio rápido: {interval_seconds}s")
+    print(f"  • Intervalo análisis cuantitativo completo: {full_scan_interval_seconds}s")
+
+    state = load_state()
+    klines = fetch_binance_klines()
+    if not klines:
+        print("[ERROR CRÍTICO] No se pudieron cargar velas iniciales de Binance.")
+        return
+
+    current_oi = fetch_binance_open_interest()
+    oi_delta = 0.0
+    if current_oi is not None:
+        if state.get('last_known_oi') is not None:
+            oi_delta = current_oi - float(state['last_known_oi'])
+        state['last_known_oi'] = current_oi
+        state['oi_delta'] = oi_delta
+        save_state(state)
+
+    # Evaluación cuantitativa inicial
+    evaluate_and_trigger_new_signal(klines, state, oi_delta=oi_delta)
+    last_full_scan_time = time.time()
+
+    while time.time() < end_time:
+        cycle_count += 1
+        now = time.time()
+        time_left = int(end_time - now)
+
+        try:
+            # 1. Consulta ultra rápida de precio (~50ms)
+            cur_price = fetch_binance_ticker_price()
+            if cur_price is None and klines:
+                cur_price = klines[-1]['c']
+
+            if cur_price:
+                # Actualizar última vela sintéticamente
+                if klines:
+                    klines[-1]['c'] = cur_price
+                    if cur_price > klines[-1]['h']: klines[-1]['h'] = cur_price
+                    if cur_price < klines[-1]['l']: klines[-1]['l'] = cur_price
+
+                # Monitoreo en vivo de posición abierta
+                if state.get('open_position'):
+                    monitor_cloud_position(cur_price, klines, state)
+
+                # Monitoreo en vivo de setup pendiente de retest
+                if state.get('pending_setup'):
+                    check_cloud_pending_setup(cur_price, state, klines)
+
+            # 2. Análisis cuantitativo completo periódico (cada 60 segundos)
+            if (now - last_full_scan_time) >= full_scan_interval_seconds:
+                fresh_klines = fetch_binance_klines()
+                if fresh_klines:
+                    klines = fresh_klines
+                    cur_price = klines[-1]['c']
+
+                fresh_oi = fetch_binance_open_interest()
+                if fresh_oi is not None:
+                    if state.get('last_known_oi') is not None:
+                        oi_delta = fresh_oi - float(state['last_known_oi'])
+                    state['last_known_oi'] = fresh_oi
+                    state['oi_delta'] = oi_delta
+
+                evaluate_and_trigger_new_signal(klines, state, oi_delta=oi_delta)
+                last_full_scan_time = now
+
+                # Heartbeat de consola
+                pos = state.get('open_position')
+                pos_str = f"{pos['direction']} @ ${pos['entry_price']:,.1f} (SL: ${pos['sl']:,.1f} | TP1: ${pos['tp1']:,.1f})" if pos else "FLAT"
+                pend = state.get('pending_setup')
+                pend_str = f"Retest {pend['direction']} (${pend['zone_min']:,.1f}-${pend['zone_max']:,.1f})" if pend else "Ninguno"
+                print(f"[{datetime.now(timezone.utc).strftime('%H:%M:%S UTC')}] Heartbeat 24/7 #{cycle_count} | BTC: ${cur_price:,.2f} | Posición: {pos_str} | Setup: {pend_str} | Restante: {time_left}s")
+
+        except Exception as e:
+            print(f"[CONTINUOUS LOOP WARN] Excepción en ciclo #{cycle_count}: {e}")
+
+        # Pausa antes del siguiente pulso
+        time.sleep(interval_seconds)
+
+    print(f"[{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}] Sesión continua de {duration_seconds}s finalizada con éxito.")
+    push_git_state_update("chore: continuous session handover")
+
+def main():
+    duration = 2700 # 45 minutos default
+    interval = 15   # 15 segundos default
+    is_continuous = False
+
+    args = sys.argv[1:]
+    i = 0
+    while i < len(args):
+        arg = args[i]
+        if arg in ('--continuous', '-c'):
+            is_continuous = True
+        elif arg in ('--duration', '-d') and i + 1 < len(args):
+            try:
+                duration = int(args[i + 1])
+                i += 1
+            except ValueError:
+                pass
+        elif arg in ('--interval', '-i') and i + 1 < len(args):
+            try:
+                interval = int(args[i + 1])
+                i += 1
+            except ValueError:
+                pass
+        i += 1
+
+    if is_continuous:
+        run_continuous(duration_seconds=duration, interval_seconds=interval)
+    else:
+        run_single_cycle()
 
 if __name__ == '__main__':
     if '--test' in sys.argv or '-t' in sys.argv:
