@@ -1,0 +1,9 @@
+{
+  "alert_key": "LONG_1792508400000_A+_WAIT_PULLBACK",
+  "direction": "LONG",
+  "score": 70,
+  "price": 82407.46,
+  "is_tier_a_plus": true,
+  "notional": 40000.0,
+  "timestamp": "2026-10-20T15:23:11.847581+00:00"
+}
