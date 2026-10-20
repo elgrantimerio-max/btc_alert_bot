@@ -1,25 +1,7 @@
 {
   "open_position": null,
-  "pending_setup": {
-    "direction": "LONG",
-    "score": 70,
-    "tier": "A+",
-    "is_tier_a_plus": true,
-    "signal_price": 82407.46,
-    "btc_qty": 0.5,
-    "notional": 40000.0,
-    "sl": 81907.46,
-    "sl_pts": 500,
-    "tp1": 83107.46,
-    "tp1_pts": 700,
-    "tp2": 83607.46,
-    "tp2_pts": 1200,
-    "zone_min": 82186.22,
-    "zone_max": 82358.3,
-    "optimal_price": 82272.26,
-    "created_at": "2026-10-20T15:23:11.847666+00:00"
-  },
+  "pending_setup": null,
   "last_known_oi": null,
   "oi_delta": 0.0,
-  "last_updated": "2026-10-20T15:50:21.798299+00:00"
+  "last_updated": "2026-10-20T16:23:18.994364+00:00"
 }
