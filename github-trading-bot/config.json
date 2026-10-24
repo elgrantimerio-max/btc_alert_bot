@@ -1,0 +1,9 @@
+{
+  "target_url": "https://TU_USUARIO.github.io/TU_WEB_REPOSITORIO/",
+  "default_symbol": "BTCUSDT",
+  "default_amount_usd": 500.0,
+  "simulated_fee_rate": 0.001,
+  "anti_duplicate": true,
+  "html_custom_selector": "signal",
+  "notes": "Configuración del lector automático de la web"
+}

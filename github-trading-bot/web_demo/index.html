@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Simulador de Señales Web -> GitHub Trading Bot</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --card-bg: #161b22;
+      --border: #30363d;
+      --text: #c9d1d9;
+      --text-bright: #f0f6fc;
+      --green: #238636;
+      --green-hover: #2ea043;
+      --red: #da3633;
+      --red-hover: #f85149;
+      --accent: #58a6ff;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 2rem;
+      display: flex;
+      justify-content: center;
+    }
+    .container {
+      max-width: 650px;
+      width: 100%;
+      background-color: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 2rem;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+    h1 {
+      color: var(--text-bright);
+      font-size: 1.5rem;
+      margin-top: 0;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.75rem;
+    }
+    .badge {
+      display: inline-block;
+      font-size: 0.75rem;
+      padding: 2px 8px;
+      border-radius: 12px;
+      background: #1f6feb;
+      color: #fff;
+      vertical-align: middle;
+      margin-left: 8px;
+    }
+    .form-group {
+      margin-bottom: 1.2rem;
+    }
+    label {
+      display: block;
+      margin-bottom: 0.4rem;
+      font-weight: 600;
+      font-size: 0.85rem;
+      color: var(--text-bright);
+    }
+    input, select {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 0.6rem 0.8rem;
+      background: #0d1117;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 0.9rem;
+    }
+    input:focus, select:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+    .btn-group {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin-top: 1.5rem;
+    }
+    button {
+      cursor: pointer;
+      padding: 0.75rem;
+      border: none;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: #fff;
+      transition: background 0.2s ease;
+    }
+    .btn-buy {
+      background-color: var(--green);
+    }
+    .btn-buy:hover {
+      background-color: var(--green-hover);
+    }
+    .btn-sell {
+      background-color: var(--red);
+    }
+    .btn-sell:hover {
+      background-color: var(--red-hover);
+    }
+    .status-box {
+      margin-top: 1.5rem;
+      padding: 1rem;
+      border-radius: 6px;
+      font-family: monospace;
+      font-size: 0.85rem;
+      background: #090d13;
+      border: 1px solid var(--border);
+      min-height: 50px;
+      white-space: pre-wrap;
+    }
+    .info-note {
+      font-size: 0.8rem;
+      color: #8b949e;
+      margin-top: 0.4rem;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h1>⚡ Señal Web &rarr; GitHub Actions Bot <span class="badge">Paper Trading</span></h1>
+  
+  <p class="info-note">
+    Esta interfaz simula una señal generada en tu web. Al pulsar el botón, se invoca la API de GitHub (<code>repository_dispatch</code>)
+    y el bot en GitHub Actions se activa en la nube para ejecutar y registrar la orden en <code>data/trades.csv</code>.
+  </p>
+
+  <div class="row">
+    <div class="form-group">
+      <label for="ghOwner">Usuario u Organización GitHub</label>
+      <input type="text" id="ghOwner" placeholder="Ej: tu-usuario">
+    </div>
+    <div class="form-group">
+      <label for="ghRepo">Nombre del Repositorio</label>
+      <input type="text" id="ghRepo" value="github-trading-bot">
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label for="ghToken">Personal Access Token (PAT)</label>
+    <input type="password" id="ghToken" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx">
+    <p class="info-note">Token con permisos de <strong>Contents: Read & Write</strong> y <strong>Actions: Read & Write</strong>.</p>
+  </div>
+
+  <div class="row">
+    <div class="form-group">
+      <label for="symbol">Activo / Cripto</label>
+      <input type="text" id="symbol" value="BTCUSDT">
+    </div>
+    <div class="form-group">
+      <label for="amountUsd">Monto a Invertir (USD)</label>
+      <input type="number" id="amountUsd" value="500" step="50">
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="form-group">
+      <label for="price">Precio Fijo (0 = Mercado en vivo)</label>
+      <input type="number" id="price" value="0" step="any">
+    </div>
+    <div class="form-group">
+      <label for="notes">Estrategia / Nota</label>
+      <input type="text" id="notes" value="RSI Sobrevendido en 1H">
+    </div>
+  </div>
+
+  <div class="btn-group">
+    <button class="btn-buy" onclick="triggerSignal('BUY')">🟢 Enviar Señal de COMPRA</button>
+    <button class="btn-sell" onclick="triggerSignal('SELL')">🔴 Enviar Señal de VENTA</button>
+  </div>
+
+  <div class="status-box" id="statusOutput">Esperando señal...</div>
+</div>
+
+<script>
+async function triggerSignal(action) {
+  const owner = document.getElementById("ghOwner").value.trim();
+  const repo = document.getElementById("ghRepo").value.trim();
+  const token = document.getElementById("ghToken").value.trim();
+  const symbol = document.getElementById("symbol").value.trim().toUpperCase();
+  const amountUsd = parseFloat(document.getElementById("amountUsd").value) || 500;
+  const price = parseFloat(document.getElementById("price").value) || 0;
+  const notes = document.getElementById("notes").value.trim();
+  const out = document.getElementById("statusOutput");
+
+  if (!owner || !repo || !token) {
+    out.textContent = "❌ Por favor completa Usuario, Repositorio y Personal Access Token (PAT).";
+    return;
+  }
+
+  out.textContent = `⏳ Enviando señal de ${action} para ${symbol} hacia GitHub Actions...`;
+
+  const eventType = action === "BUY" ? "buy_signal" : "sell_signal";
+  const url = `https://api.github.com/repos/${owner}/${repo}/dispatches`;
+
+  const payload = {
+    event_type: eventType,
+    client_payload: {
+      action: action,
+      symbol: symbol,
+      amount_usd: amountUsd,
+      price: price,
+      quantity: 0,
+      source: "Web Demo Frontend",
+      notes: notes,
+      timestamp: new Date().toISOString()
+    }
+  };
+
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Accept": "application/vnd.github+json",
+        "Authorization": `Bearer ${token}`,
+        "X-GitHub-Api-Version": "2022-11-28",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (res.status === 204) {
+      out.textContent = `✅ [204 OK] Señal de ${action} enviada con éxito a GitHub!\n\n` +
+        `-> GitHub Actions ha iniciado un runner en la nube.\n` +
+        `-> El bot calculará la orden y confirmará el registro en data/trades.csv.\n` +
+        `-> Puedes revisar la ejecución en: https://github.com/${owner}/${repo}/actions`;
+    } else {
+      const err = await res.text();
+      out.textContent = `❌ Error de GitHub API [Status ${res.status}]:\n${err}`;
+    }
+  } catch (e) {
+    out.textContent = `❌ Error de conexión: ${e.message}`;
+  }
+}
+</script>
+
+</body>
+</html>

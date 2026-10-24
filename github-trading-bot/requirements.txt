@@ -1,0 +1,6 @@
+# El bot central utiliza la biblioteca estándar de Python (sin dependencias externas requeridas)
+# para maximizar la velocidad de inicio del runner en GitHub Actions (< 5 segundos).
+
+# Paquetes opcionales recomendados para análisis avanzado local:
+# pandas>=2.0.0
+# matplotlib>=3.8.0
