@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  btc-quant-daemon:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: btc_quant_v6_daemon
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - PYTHONUNBUFFERED=1
+      - QUANT_TIMEFRAME=4h
+      - QUANT_SYMBOL=btcusdt
+    volumes:
+      - ./state.json:/app/state.json
+      - ./journal.json:/app/journal.json
+      - ./last_alert.json:/app/last_alert.json
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

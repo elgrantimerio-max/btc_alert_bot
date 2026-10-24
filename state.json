@@ -1,7 +1,8 @@
 {
   "open_position": null,
   "pending_setup": null,
-  "last_known_oi": 95616.095,
-  "oi_delta": 58.66599999999744,
-  "last_updated": "2026-10-24T13:40:57.027241+00:00"
+  "last_known_oi": 95140.568,
+  "oi_delta": 59.0679999999993,
+  "bankroll_usdt": 5000.0,
+  "last_updated": "2026-10-24T15:40:40.331907+00:00"
 }

@@ -4006,8 +4006,14 @@
 
       for (let i = 0; i < klines.length; i++) {
         const k = klines[i];
-        const range = k.h - k.l;
-        const delta = range > 0 ? (k.v * ((k.c - k.o) / range)) : 0;
+        let delta = 0;
+        if (k.tbv !== undefined && k.tbv !== null && k.tbv >= 0) {
+          // Delta Real Nativo Binance = 2 * Taker Buy - Total Volume
+          delta = 2.0 * k.tbv - k.v;
+        } else {
+          const range = k.h - k.l;
+          delta = range > 0 ? (k.v * ((k.c - k.o) / range)) : 0;
+        }
         cumCVD += delta;
         cvdSeries.push(cumCVD);
         deltas.push(delta);
@@ -5724,7 +5730,8 @@
             h: parseFloat(k[2]),
             l: parseFloat(k[3]),
             c: parseFloat(k[4]),
-            v: parseFloat(k[5])
+            v: parseFloat(k[5]),
+            tbv: k[9] !== undefined ? parseFloat(k[9]) : undefined
           });
         }
       }
@@ -7557,7 +7564,8 @@
               h: parseFloat(k[2]),
               l: parseFloat(k[3]),
               c: parseFloat(k[4]),
-              v: parseFloat(k[5])
+              v: parseFloat(k[5]),
+              tbv: k[9] !== undefined ? parseFloat(k[9]) : undefined
             }));
           }
         } catch (err) {

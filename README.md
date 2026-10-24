@@ -1,88 +1,125 @@
-# ⚡ BTC Quant Terminal V6.5 — Pro Edition
+# ⚡ BTC Quant Terminal V6.5 — Pro Institutional Edition
 
-> **Terminal Cuantitativa Autónoma de Bitcoin (BTC/USDT) con Enfoque Híbrido Doble Nivel ($20k/$40k), Matriz Multi-Temporal en Tiempo Real, Índice de Confluencia Calibrado a 100 Puntos, Vigilancia Cloud 24/7 mediante GitHub Actions y Alertas Instantáneas a Telegram.**
+> **Terminal Cuantitativa Autónoma de Bitcoin (BTC/USDT) con Motor Unificado de Grado Institucional, Flujo de Órdenes Nativo de Binance (True Taker CVD), Modelo de 3 Factores Ortogonales, Objetivos Dinámicos por Volatilidad (ATR), Dimensionamiento por Riesgo Fijo (Fixed Fractional), Daemon de WebSocket de Ultra Baja Latencia (<50ms), Vigilancia Cloud y Alertas en Tiempo Real por Telegram.**
 
 [![BTC Quant Guardian 24/7](https://github.com/elgrantimerio-max/btctradingbot/actions/workflows/quant_guardian_24_7.yml/badge.svg)](https://github.com/elgrantimerio-max/btctradingbot/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-emerald.svg)](LICENSE)
 [![Python 3.11](https://img.shields.io/badge/Python-3.11-blue.svg)](https://www.python.org/)
+[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg)](Dockerfile)
 
 ---
 
-## 🎯 Objetivo del Sistema
+## 🎯 Objetivo y Filosofía Cuantitativa
 
-Capturar expansiones intradía de **1.200 a 1.500 puntos (USD)** en Bitcoin (BTC/USDT) en operaciones en **Largo (LONG)** o **Corto (SHORT)** con **Win Rate superior al 65%-70%** y una frecuencia operativa óptima (8 a 15 operaciones por cada 500 velas de 15m), avisando en tiempo real por **Telegram** tanto del momento exacto de **ENTRADA** como de **SALIDA**, funcionando de forma **100% autónoma en la nube las 24 horas del día, los 7 días de la semana**.
-
----
-
-## 🌐 Novedades V6.5: Enfoque Híbrido Doble Nivel y Auditoría del Índice de Confluencia
-
-La versión 6.5 introduce mejoras estructurales tanto en la analítica de confluencia como en la gestión de capital:
-
-1. **Enfoque Híbrido Doble Nivel ($20.000 / $40.000 USD):**
-   - **Operación Estándar ($20k / 0.25 BTC):** Se activa cuando el score alcanza el umbral mínimo ($\ge 68\%$).
-   - **Operación Acelerada A+ ($40k / 0.50 BTC):** Se activa automáticamente cuando la señal tiene confluencia completa de volumen y flujo institucional (Score $\ge 68\%$, RVOL $\ge 1.0\times$ y CVD Delta estrictamente alineado con la dirección).
-   - El *Live Position Desk* y las alertas automáticas de Telegram reflejan en tiempo real el tier correspondiente (`💎 A+ $40k` o `$20k`).
-2. **Auditoría y Calibración Matemática del Índice de Confluencia (100 Puntos Exactos):**
-   - **Pilar 1 - Filtro de Sesión:** Londres, NY, Overlap $\rightarrow$ Máx 15 pts.
-   - **Pilar 2 - Régimen Anti-Chop & TTM Squeeze:** Choppiness + ADX $\rightarrow$ Máx 15 pts.
-   - **Pilar 3 - Ruptura ORB & Combustible ADR 24h:** $\rightarrow$ Máx 15 pts.
-   - **Pilar 4 - Estructura Técnica y Momentum:** VWAP + EMAs 20/50/100/200 + Ichimoku Kumo + RSI(14) + Velas de Momentum $\rightarrow$ Máx 34 pts.
-   - **Pilar 5 - Order Flow & Dinero Nuevo:** CVD Delta + RVOL + Futuros OI Delta $\rightarrow$ Máx 15 pts.
-   - **Pilar 6 - Barridos de Liquidez SFP Institucional:** $\rightarrow$ Máx 6 pts.
-   - **Suma Total Exacta:** $15 + 15 + 15 + 34 + 15 + 6 = 100\text{ pts}$.
-3. **Mejoras Visuales en el Radar de Confluencia:**
-   - **Coloreado Dinámico de Pilares:** Verde para pilares fuertes ($\ge 70\%$), Dorado para intermedios ($40-69\%$) y Atenuado para débiles ($< 40\%$).
-   - **Alineación de Desglose en Neutro/Bias:** La tarjeta de pilares ahora siempre refleja los valores del lado dominante, evitando discrepancias en el monitor.
-   - **Corrección de Metadatos SL/TP:** Contenedor de objetivos responsivo en *Live Position Desk* con cálculo unificado en Long/Short.
-4. **Diseño Ultra-Responsivo Móvil (Optimizado para Google Pixel 10a):**
-   - Vista adaptada específicamente para smartphones de alta resolución (ancho ~412px en Pixel 10a, Galaxy, iPhone).
-   - Reorganización vertical inteligente: Gráfico interactivo prioritario arriba, seguido del *Live Position Desk*, *Radar de Confluencia* y *Matriz Multi-Temporal*.
-   - Barras de control y temporalidades con desplazamiento táctil horizontal fluido (`touch-scrolling`).
-   - Inspección táctil nativa de velas con el dedo sin bloquear el scroll vertical.
+Capturar expansiones de momentum intradía en Bitcoin (BTC/USDT) en **Largo (LONG)** o **Corto (SHORT)** con **esperanza matemática positiva auditada**, gestionando el riesgo de forma asimétrica:
+* **Stop-Loss Dinámico:** Anclado a la volatilidad real del mercado ($1.5 \times \text{ATR}_{14}$).
+* **Toma de Beneficios Dual:** Aseguramiento del 75% en TP1 ($2.0 \times \text{ATR}_{14}$), elevando el Stop a Break-Even ($+0.30 \times \text{ATR}_{14}$), y dejando correr el 25% restante a TP2 ($3.5 \times \text{ATR}_{14}$) con Trailing Stop automático.
+* **Salida por Tiempo Estricta (Time Decay):** 5 velas (20 horas en 4H) para evitar quedar atrapado en contracciones de volatilidad.
+* **Dimensionamiento de Capital (Fixed Fractional):** Arriesga exactamente el **2.0% del capital de la cuenta** por operación (o 3.0% en setups de alta convicción Tier A+), protegiendo el balance frente a rachas adversas.
 
 ---
 
-## ☁️ ¿Cómo Funciona la Automatización Cloud 24/7?
+## 🧠 Arquitectura Cuantitativa V6.5 (Mejoras Institucionales)
 
-```mermaid
-flowchart LR
-    A["⏰ GitHub Actions Cron (Cada 30 min)"] --> B["🐍 quant_bot_24_7.py"]
-    B --> C["📊 Binance Spot & Futures Data"]
-    B --> C["📊 Binance Spot & Futures Data"]
-    C --> D["🧠 9 Pilares Cuantitativos"]
-    D --> E{"¿Score >= 68% & Sin Bloqueos?"}
-    E -- Sí --> F["📱 Telegram Bot API"]
-    E -- No --> G["💤 Hibernación / Filtro Activo"]
-```
+### 1. Flujo de Órdenes Real con Datos Nativos de Binance (True Taker CVD)
+* **Antes:** El delta se estimaba mediante una aproximación sintética del cuerpo de la vela.
+* **Ahora:** Se extrae directamente la **columna índice 9 de Binance (`taker_buy_base_asset_volume`)**:
+  $$\text{Delta Real} = \text{Taker Buy} - (\text{Volumen Total} - \text{Taker Buy}) = 2 \times \text{Taker Buy} - \text{Volumen Total}$$
+  $$\text{Taker Ratio} = \frac{\text{Delta Real}}{\text{Volumen Total}} \in [-1.0, +1.0]$$
 
-1. **GitHub Actions Runner:** Cada 30 minutos (`*/30 * * * *`), los servidores de GitHub ejecutan en la nube el script [`quant_bot_24_7.py`](quant_bot_24_7.py).
-2. **Sin dependencias externas pesadas:** Utiliza librerías estándar de Python 3 para ejecutarse en menos de 3 segundos con 100% de fiabilidad en GitHub Actions.
-3. **Evaluación de los 9 Pilares Cuantitativos Institucionales:**
-   - **Filtro de Sesión:** Londres (08:00-16:30 UTC), NY (13:30-21:00 UTC) y Overlap Londres-NY (13:30-16:30 UTC).
-   - **Detector Anti-Chop & TTM Squeeze Pro:** Choppiness Index (14) + ADX (14) + TTM Squeeze (Carter). Si hay compresión (puntos rojos de bandas dentro de canales Keltner), **bloquea quiebres falsos**. Solo dispara con expansión (puntos verdes). Si `Chop > 61.8` y `ADX < 22`, activa `MODO HIBERNACIÓN`.
-   - **Cajón ORB (8h) + Combustible ADR 24h:** Evalúa el rango de apertura y el margen de recorrido disponible respecto al benchmark de 2.500 pts.
-   - **Estructura VWAP 24h + EMAs 20, 50, 100, 200 + RSI (14):** Confluencia de tendencia rápida y macro-institucional con controles independientes de visualización para EMA 20 y EMA 50.
-   - **Filtro Macro Ichimoku Kumo (1H y 4H):** **Regla de oro institucional:** Prohibido abrir compras si el precio está por debajo de la nube bajista Kumo; prohibido abrir ventas si está por encima de la nube alcista Kumo.
-   - **Flujo de Órdenes & Filtro de Dinero Nuevo (CVD + OI Delta):** Compara el Delta de Volumen Acumulado con la variación en el Interés Abierto de Futuros Binance (FAPI). Si el precio sube pero el OI cae, detecta cierre de cortos (rebote falso sin dinero fresco) y anula la compra.
-   - **Mapa de Liquidaciones y Barridos (SFP Calibrado a 8 pts):** Ponderación calibrada para evitar compras a la contra en caídas fuertes macro.
-4. **Despacho Inmediato:** Si la confluencia alcanza $\ge 68\%$ y no hay bloqueos de Kumo o Squeeze, emite de forma instantánea la alerta detallada a Telegram con Entrada, Stop-Loss adaptativo y objetivos TP1 y TP2.
-5. **Caché Anti-Duplicados y Estado:** Guarda `last_alert.json` y `state.json` con el histórico de Open Interest para calcular el delta continuo.
+### 2. Normalización Total por Volatilidad (ATR Dinámico)
+* **Antes:** Puntos nominales fijos de USD ($700 pts SL, $1.500 pts TP).
+* **Ahora:** Objetivos auto-calibrados por la volatilidad actual:
+  $$\text{SL} = 1.5 \times \text{ATR}_{14}, \quad \text{TP1} = 2.0 \times \text{ATR}_{14}, \quad \text{TP2} = 3.5 \times \text{ATR}_{14}$$
+  *(En temporalidad 4H con horizonte de 20h, se ajustan automáticamente a 0.55x / 0.75x / 1.25x ATR para garantizar compatibilidad temporal).*
+
+### 3. Descorrelación de Factores (Modelo Ortogonal de 3 Dimensiones)
+Elimina la multicolinealidad de sumar indicadores solapados mediante reducción a 3 factores independientes:
+* **Factor 1 - Inercia / Tendencia ($Z_{\text{trend}}$):** $Z\text{-score}$ de distancia del precio al VWAP rodante normalizado por ATR + pendientes relativas de EMA 20/50 y macro EMA 200.
+* **Factor 2 - Régimen de Volatilidad ($R_{\text{regime}}$):** Choppiness Index invertido + ADX(14) + compresión TTM Squeeze. Detecta si el mercado está en expansión limpia o rango sucio.
+* **Factor 3 - Presión de Flujo ($P_{\text{flow}}$):** Ratio CVD Taker real de Binance amplificado por RVOL + variación del Open Interest de Futuros ($\Delta\text{OI}$).
+
+**Probabilidad Calibrada mediante Regresión Logística Sigmoide:**
+$$P(\text{Éxito}) = \frac{1}{1 + e^{-z}}$$
+Solo se dispara señal si $P(\text{Éxito}) \ge 60\%$ (o $\ge 75\%$ para Tier A+).
+
+### 4. Dimensionamiento por Riesgo Fijo (Fixed Fractional Sizing)
+$$\text{Posición (BTC)} = \frac{\text{Capital en Cuenta} \times 0.02}{\text{Distancia al Stop-Loss (USD)}}$$
+Garantiza que una racha de pérdidas consecutivas solo reduzca una fracción predecible del capital, sin riesgo de liquidación.
+
+### 5. Resultados Auditados sobre 500 Días (Zero Lookahead Bias)
+* **Dataset Auditado:** 500 días de Binance (2.998 velas de 4H) con resolución microestructural intrabarra.
+* **Operaciones Totales:** **90 trades** (filtro de alta convicción sin overtrading)
+* **Win Rate Real:** **56.7%** (51 ganadas / 39 perdidas)
+* **Profit Factor:** **1.83**
+* **Puntos Netos Capturados:** **+18,985 pts**
+* **Crecimiento de Capital ($5,000 inicial):** **$10,040.09 USDT (+100.8% ROI)**
+* **Drawdown Máximo:** **-9.9% (-$675.19 USDT)**
+* **Esperanza Matemática:** **+$56.00 USDT por operación**
+* **Permanencia Promedio:** **9.3 horas**
 
 ---
 
-## 🛡️ Estructura del Proyecto
+## 🏗️ Estructura del Código (Single Source of Truth - DRY)
 
 ```text
-├── .github/
-│   └── workflows/
-│       └── quant_guardian_24_7.yml  # Automatismo Cloud 24/7 (Cron: cada 10 min)
-├── index.html                       # Terminal Web Full-Stack (HTML5, CSS3, JS ES6+)
-├── quant_bot_24_7.py                # Motor Cuantitativo Headless en Python 3
-├── quant_bot_24_7.js                # Motor Cuantitativo Companion en Node.js
-├── .gitignore                       # Filtro de exclusión para Git
-└── README.md                        # Documentación institucional y guía de despliegue
+├── engine/
+│   ├── __init__.py              # Exportaciones del motor cuantitativo
+│   ├── quant_core.py            # ÚNICA FUENTE DE VERDAD (CVD nativo, 3 factores, SL/TP ATR, sizing)
+│   └── backtest_engine.py       # Motor de backtesting institucional sin sesgo intrabarra
+├── quant_bot_24_7.py            # Motor para GitHub Actions (Single Cycle / Polling)
+├── daemon_ws_bot.py             # Daemon en tiempo real WebSocket Binance (<50ms latencia)
+├── run_backtest.py              # CLI para auditoría histórica de 500 días
+├── Dockerfile                   # Contenedor Docker optimizado (Python 3.11-slim)
+├── docker-compose.yml           # Despliegue en 1 comando para VPS (Hetzner, AWS, etc.)
+├── backtest_500d_summary.json   # Resumen de backtest auditado
+├── backtest_500d_data.js        # Dataset sincronizado para la interfaz web
+├── index.html                   # Terminal Web con TradingView canvas y journal
+├── state.json                   # Estado persistente de la posición activa
+├── journal.json                 # Diario histórico de operaciones
+└── requirements.txt             # Dependencias Python
 ```
 
 ---
 
-*Desarrollado con arquitectura cuantitativa de grado institucional.*
+## 🚀 Opciones de Despliegue y Ejecución
+
+### Opción 1: Despliegue VPS con Docker (Recomendado — <50ms Latencia)
+Para eliminar los retrasos de cola de GitHub Actions y monitorear el mercado tick a tick por WebSocket:
+
+```bash
+# 1. Configurar tus claves en .env
+cp .env.example .env
+# Editar TELEGRAM_BOT_TOKEN y TELEGRAM_CHAT_ID en .env
+
+# 2. Levantar el daemon en segundo plano
+docker compose up -d
+
+# 3. Ver logs en tiempo real
+docker compose logs -f
+```
+
+### Opción 2: En la Nube 24/7 sin Servidor (GitHub Actions)
+1. Sube el repositorio a GitHub.
+2. En tu repositorio, entra en **Settings > Secrets and variables > Actions** y añade:
+   * `TELEGRAM_BOT_TOKEN`: Token de [@BotFather](https://t.me/BotFather).
+   * `TELEGRAM_CHAT_ID`: Tu Chat ID numérico.
+3. El workflow `.github/workflows/quant_guardian_24_7.yml` ejecutará [`quant_bot_24_7.py`](quant_bot_24_7.py) de forma periódica.
+
+### Opción 3: Auditoría y Backtest Local en 1 Clic
+```bash
+python run_backtest.py
+```
+Ejecuta la simulación sobre las 3,000 velas de 4H (500 días), resuelve la trayectoria intrabarra (eliminando el sesgo de TP antes de SL) y actualiza automáticamente los datos de la interfaz web [`index.html`](index.html).
+
+---
+
+## 🌐 Activación de la Web Online (GitHub Pages)
+
+1. En tu repositorio GitHub, ve a **Settings > Pages**.
+2. En **Build and deployment > Source**, selecciona rama `main` y carpeta `/ (root)`.
+3. Tu terminal estará disponible de inmediato con los gráficos y el backtest sincronizado.
+
+---
+
+*Arquitectura cuantitativa unificada de grado profesional.*
