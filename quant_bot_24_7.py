@@ -43,6 +43,7 @@ TELEGRAM_API_URL = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessag
 
 active_tf = os.environ.get('QUANT_TIMEFRAME', '1h').lower()
 is_1h = (active_tf == '1h')
+is_1d = (active_tf == '1d')
 
 QUANT_CONFIG = {
     'symbol': 'BTCUSDT',
@@ -51,20 +52,20 @@ QUANT_CONFIG = {
     'min_score_threshold': 68,
     'atr_multiplier': 1.2,
     'min_stop_loss_pts': 180,
-    'max_stop_loss_pts': 1500,
+    'max_stop_loss_pts': 3500 if is_1d else 1500,
     'tp1_atr_multiplier': 1.2,
     'tp2_atr_multiplier': 3.6,
-    'tp1_pts': 700 if is_1h else 900,
-    'tp2_pts': 1200 if is_1h else 1500,
-    'sl_pts': 500 if is_1h else 700,
+    'tp1_pts': 2000 if is_1d else (700 if is_1h else 900),
+    'tp2_pts': 3500 if is_1d else (1200 if is_1h else 1500),
+    'sl_pts': 1500 if is_1d else (500 if is_1h else 700),
     'tp1_partial_pct': 0.75,
     'tp2_runner_pct': 0.25,
-    'break_even_lock_pts': 200 if is_1h else 300,
-    'max_hold_candles': 5, # 5 velas (5h en 1H, 20h en 4H)
+    'break_even_lock_pts': 600 if is_1d else (200 if is_1h else 300),
+    'max_hold_candles': 5, # 5 velas (5h en 1H, 20h en 4H, 5 días en 1D)
     'break_even_buffer_atr': 0.25,
     'trailing_trigger_atr': 1.8,
     'trailing_distance_atr': 1.1,
-    'early_exit_min_profit_pts': 350 if is_1h else 400,
+    'early_exit_min_profit_pts': 800 if is_1d else (350 if is_1h else 400),
     'friction_fee_pts': 35,
     'bankroll_usdt': 5000.0,
     'trade_notional_usdt': 20000.0,
@@ -72,7 +73,7 @@ QUANT_CONFIG = {
     'default_trade_size_btc': 0.25,
     'tier_a_plus_trade_size_btc': 0.50,
     'leverage': 20,
-    'signal_validity_minutes': 60 if is_1h else 120 # Ventana de validez: 1h (12 ciclos) en 1H o 2h (24 ciclos) en 4H
+    'signal_validity_minutes': 720 if is_1d else (60 if is_1h else 120) # 12h en 1D, 1h en 1H, 2h en 4H
 }
 
 STATE_FILE = 'state.json'
@@ -332,6 +333,12 @@ def calculate_rsi(klines, period=14):
 def calculate_orb(klines):
     if not klines:
         return 0, 0, False
+    if is_1d:
+        if len(klines) < 2:
+            return klines[0]['h'], klines[0]['l'], True
+        prev = klines[-2]
+        return prev['h'], prev['l'], True
+
     latest_time = klines[-1]['t']
     dt = datetime.fromtimestamp(latest_time / 1000.0, tz=timezone.utc)
     day_start = dt.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -349,12 +356,20 @@ def calculate_orb(klines):
     return (orb_high if found else klines[0]['h']), (orb_low if found else klines[0]['l']), found
 
 def calculate_adr_fuel(klines):
-    lookback = min(len(klines), 96)
+    if is_1d:
+        atr14 = calculate_atr(klines, 14)
+        benchmark = max(2200.0, atr14 if atr14 > 0 else 3200.0)
+        cur = klines[-1]
+        consumed = cur['h'] - cur['l']
+        remaining = max(0.0, benchmark - consumed)
+        return consumed, remaining
+
+    lookback = min(len(klines), 6 if active_tf == '4h' else (24 if is_1h else 96))
     sub = klines[-lookback:]
     h_24h = max(k['h'] for k in sub)
     l_24h = min(k['l'] for k in sub)
     consumed = h_24h - l_24h
-    benchmark = 2500.0
+    benchmark = 4500.0 if active_tf == '4h' else (3200.0 if is_1h else 2500.0)
     remaining = max(0.0, benchmark - consumed)
     return consumed, remaining
 
@@ -516,10 +531,11 @@ def evaluate_signal(klines, oi_delta=0.0):
     is_ny = 13.5 <= utc_hours < 21.0
     is_overlap = is_london and is_ny
 
-    if is_weekend:
+    if is_1d:
+        session_name = 'MACRO DIARIO (1D)'
+        session_score = 14
+    elif is_weekend:
         # FIN DE SEMANA: Bolsas tradicionales cerradas. Sin flujo institucional de Londres ni NY.
-        # Ponderación reducida a 4 pts para evitar señales falsas por falta de dinero institucional,
-        # pero permitiendo operar si los otros 5 pilares técnicos tienen confluencia máxima (≥64 pts para alcanzar 68%).
         session_name = 'FIN DE SEMANA (BOLSAS CERRADAS)'
         session_score = 4
     else:
@@ -545,28 +561,32 @@ def evaluate_signal(klines, oi_delta=0.0):
     ttm = calculate_ttm_squeeze(klines, 20)
 
     if chop > 61.8 and adx < 22.0:
-        return {
-            'score': 0,
-            'direction': 'HIBERNATION',
-            'session': session_name,
-            'chop': chop,
-            'adx': adx,
-            'ttm': ttm,
-            'reasons': ['MODO HIBERNACIÓN: Choppiness > 61.8 y ADX < 22 (Mercado sucio sin expansión)'],
-            'optimal_entry': {
-                'market_price': cur_price, 'optimal_price': cur_price,
-                'zone_min': cur_price, 'zone_max': cur_price,
-                'timing_status': 'HIBERNATION', 'timing_advice': 'Modo Hibernación activo (Chop > 61.8). No operar.'
-            },
-            'pillars': {
-                'session': session_score,
-                'anti_chop': 0,
-                'orb': 0,
-                'structure': 0,
-                'order_flow': 0,
-                'liq_sweep': 0
+        if is_1d:
+            anti_chop_score = 4
+            gray_zone_block = True
+        else:
+            return {
+                'score': 0,
+                'direction': 'HIBERNATION',
+                'session': session_name,
+                'chop': chop,
+                'adx': adx,
+                'ttm': ttm,
+                'reasons': ['MODO HIBERNACIÓN: Choppiness > 61.8 y ADX < 22 (Mercado sucio sin expansión)'],
+                'optimal_entry': {
+                    'market_price': cur_price, 'optimal_price': cur_price,
+                    'zone_min': cur_price, 'zone_max': cur_price,
+                    'timing_status': 'HIBERNATION', 'timing_advice': 'Modo Hibernación activo (Chop > 61.8). No operar.'
+                },
+                'pillars': {
+                    'session': session_score,
+                    'anti_chop': 0,
+                    'orb': 0,
+                    'structure': 0,
+                    'order_flow': 0,
+                    'liq_sweep': 0
+                }
             }
-        }
 
     atr = calculate_atr(klines, 14)
     gray_zone_block = False
