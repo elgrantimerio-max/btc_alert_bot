@@ -7,7 +7,7 @@
     "notional": 21400.38,
     "is_tier_a_plus": false,
     "tier": "EST\u00c1NDAR",
-    "sl": 81034.92,
+    "sl": 80469.62000000001,
     "sl_pts": 376.9,
     "tp1": 80144.02,
     "tp1_pts": 514.0,
@@ -16,12 +16,15 @@
     "be_lock_pts": 188.4,
     "trailing_trigger": 1507.7,
     "trailing_distance": 822.4,
-    "tp1_hit": false,
-    "opened_at": "2026-10-25T08:01:28.067836+00:00"
+    "tp1_hit": true,
+    "opened_at": "2026-10-25T08:01:28.067836+00:00",
+    "tp1_hit_time": "2026-10-25T23:27:19.978468+00:00",
+    "peak_price": 80132.12,
+    "realized_usd": 102.27314999999999
   },
   "pending_setup": null,
   "last_known_oi": 95140.568,
   "oi_delta": 59.0679999999993,
   "bankroll_usdt": 5000.0,
-  "last_updated": "2026-10-25T22:39:47.634161+00:00"
+  "last_updated": "2026-10-25T23:27:20.297704+00:00"
 }
