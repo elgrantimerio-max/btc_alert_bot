@@ -1,1 +1,19 @@
-[]
+[
+  {
+    "id": "CLOUD_1792915288",
+    "isAutonomous": true,
+    "direction": "SHORT",
+    "tier": "EST\u00c1NDAR",
+    "openedAt": "2026-10-25T08:01:28.067836+00:00",
+    "closedAt": "2026-10-26T01:38:55.330795+00:00",
+    "entryPrice": 80658.02,
+    "exitPrice": 79800.01,
+    "size": 0.2653,
+    "notional": 21400.38,
+    "netPts": 565,
+    "netPnlUsd": 149.9,
+    "roiPct": 14.0,
+    "reason": "\ud83e\udd16 Quant Guardian [TP2 FINAL (+858 PTS)]",
+    "tp1Hit": true
+  }
+]
