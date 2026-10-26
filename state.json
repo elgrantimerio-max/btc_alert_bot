@@ -19,12 +19,12 @@
     "tp1_hit": true,
     "opened_at": "2026-10-25T08:01:28.067836+00:00",
     "tp1_hit_time": "2026-10-25T23:27:19.978468+00:00",
-    "peak_price": 80132.12,
+    "peak_price": 79880.25,
     "realized_usd": 102.27314999999999
   },
   "pending_setup": null,
   "last_known_oi": 95140.568,
   "oi_delta": 59.0679999999993,
   "bankroll_usdt": 5000.0,
-  "last_updated": "2026-10-25T23:27:20.297704+00:00"
+  "last_updated": "2026-10-26T00:10:04.724034+00:00"
 }
