@@ -1,5 +1,22 @@
 [
   {
+    "id": "CLOUD_1793203568",
+    "isAutonomous": true,
+    "direction": "SHORT",
+    "tier": "EST\u00c1NDAR",
+    "openedAt": "2026-10-28T16:06:08.477066+00:00",
+    "closedAt": "2026-10-28T17:56:25.283353+00:00",
+    "entryPrice": 80548.01,
+    "exitPrice": 80932.0,
+    "size": 0.2771,
+    "notional": 22318.65,
+    "netPts": -419,
+    "netPnlUsd": -116.1,
+    "roiPct": -10.4,
+    "reason": "\ud83e\udd16 Quant Guardian [STOP-LOSS (-361 pts)]",
+    "tp1Hit": false
+  },
+  {
     "id": "CLOUD_1793089655",
     "isAutonomous": true,
     "direction": "SHORT",
