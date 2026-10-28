@@ -1,27 +1,8 @@
 {
-  "open_position": {
-    "id": "CLOUD_1793203568",
-    "direction": "SHORT",
-    "entry_price": 80548.01,
-    "btc_qty": 0.2771,
-    "notional": 22318.65,
-    "is_tier_a_plus": false,
-    "tier": "EST\u00c1NDAR",
-    "sl": 80908.91,
-    "sl_pts": 360.9,
-    "tp1": 80055.81,
-    "tp1_pts": 492.2,
-    "tp2": 79727.71,
-    "tp2_pts": 820.3,
-    "be_lock_pts": 180.4,
-    "trailing_trigger": 1443.7,
-    "trailing_distance": 787.5,
-    "tp1_hit": false,
-    "opened_at": "2026-10-28T16:06:08.477066+00:00"
-  },
+  "open_position": null,
   "pending_setup": null,
   "last_known_oi": 95054.311,
   "oi_delta": -86.25699999999779,
-  "bankroll_usdt": 5037.14,
-  "last_updated": "2026-10-28T17:56:09.143538+00:00"
+  "bankroll_usdt": 4921.04,
+  "last_updated": "2026-10-28T18:22:41.886919+00:00"
 }
